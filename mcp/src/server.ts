@@ -1,0 +1,213 @@
+/**
+ * MCP Server - registers execute tool with type definitions
+ */
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+import { execute, ExecutionError } from "./executor.js";
+import { CliError, CliTimeoutError } from "./types.js";
+
+const TOOL_DESCRIPTION = `
+Execute JavaScript code to interact with Overseer task management.
+
+Available APIs in sandbox:
+
+\`\`\`typescript
+interface Task {
+  id: string;
+  parentId: string | null;
+  description: string;
+  context: { own: string; parent?: string; milestone?: string };
+  learnings: { milestone: Learning[]; parent: Learning[] };
+  priority: 1 | 2 | 3 | 4 | 5;
+  completed: boolean;
+  depth: 0 | 1 | 2;
+  blockedBy: string[];
+  blocks: string[];
+}
+
+interface Learning {
+  id: string;
+  taskId: string;
+  content: string;
+  sourceTaskId: string | null;
+  createdAt: string;
+}
+
+// Tasks API
+declare const tasks: {
+  list(filter?: { parentId?: string; ready?: boolean; completed?: boolean }): Promise<Task[]>;
+  get(id: string): Promise<Task>;
+  create(input: {
+    description: string;
+    context?: string;
+    parentId?: string;
+    priority?: 1 | 2 | 3 | 4 | 5;
+    blockedBy?: string[];
+  }): Promise<Task>;
+  update(id: string, input: {
+    description?: string;
+    context?: string;
+    priority?: 1 | 2 | 3 | 4 | 5;
+    parentId?: string;
+  }): Promise<Task>;
+  start(id: string): Promise<Task>;
+  complete(id: string, result?: string): Promise<Task>;
+  reopen(id: string): Promise<Task>;
+  delete(id: string): Promise<void>;
+  block(taskId: string, blockerId: string): Promise<void>;
+  unblock(taskId: string, blockerId: string): Promise<void>;
+  nextReady(milestoneId?: string): Promise<Task | null>;
+};
+
+// Learnings API
+declare const learnings: {
+  add(taskId: string, content: string, sourceTaskId?: string): Promise<Learning>;
+  list(taskId: string): Promise<Learning[]>;
+  delete(id: string): Promise<void>;
+};
+
+// VCS API
+declare const vcs: {
+  detect(): Promise<{ type: "jj" | "git" | "none"; root: string | null }>;
+  status(): Promise<{ files: string[]; commitId: string | null }>;
+  log(limit?: number): Promise<Array<{ id: string; description: string; author: string | null; timestamp: string }>>;
+  diff(base?: string): Promise<Array<{ path: string; changeType: "added" | "modified" | "deleted" }>>;
+  commit(message: string): Promise<{ id: string; description: string; timestamp: string }>;
+};
+\`\`\`
+
+Examples:
+
+\`\`\`javascript
+// List all ready tasks
+return await tasks.list({ ready: true });
+
+// Create milestone with subtask
+const milestone = await tasks.create({
+  description: "Build authentication system",
+  context: "JWT-based auth with refresh tokens",
+  priority: 1
+});
+
+const subtask = await tasks.create({
+  description: "Implement token refresh logic",
+  parentId: milestone.id,
+  context: "Handle 7-day expiry",
+  priority: 2
+});
+
+// Get task with full context
+const task = await tasks.get(subtask.id);
+console.log(task.context.milestone); // inherited from root
+
+// Complete task and add learning
+await tasks.complete(task.id, "Implemented using jose library");
+await learnings.add(task.id, "Use jose instead of jsonwebtoken");
+
+// Commit work
+const vcsInfo = await vcs.detect();
+if (vcsInfo.type !== "none") {
+  await vcs.commit("feat: add token refresh");
+}
+\`\`\`
+`.trim();
+
+/**
+ * Create and configure MCP server
+ */
+export function createServer(): Server {
+  const server = new Server(
+    {
+      name: "overseer-mcp",
+      version: "0.1.0",
+    },
+    {
+      capabilities: {
+        tools: {},
+      },
+    }
+  );
+
+  // Register tools handler
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [
+      {
+        name: "execute",
+        description: TOOL_DESCRIPTION,
+        inputSchema: {
+          type: "object",
+          properties: {
+            code: {
+              type: "string",
+              description: "JavaScript code to execute (async/await supported)",
+            },
+          },
+          required: ["code"],
+        },
+      },
+    ],
+  }));
+
+  // Register tool call handler
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (request.params.name !== "execute") {
+      throw new Error(`Unknown tool: ${request.params.name}`);
+    }
+
+    const code = request.params.arguments?.code;
+    if (typeof code !== "string") {
+      throw new Error("Missing or invalid 'code' argument");
+    }
+
+    try {
+      const result = await execute(code);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (err) {
+      let errorMessage: string;
+      if (err instanceof ExecutionError) {
+        errorMessage = `Execution error: ${err.message}${err.stackTrace ? `\n${err.stackTrace}` : ""}`;
+      } else if (err instanceof CliTimeoutError) {
+        errorMessage = `CLI timeout: ${err.message}`;
+      } else if (err instanceof CliError) {
+        errorMessage = `CLI error (exit ${err.exitCode}): ${err.message}`;
+      } else if (err instanceof Error) {
+        errorMessage = `Error: ${err.message}`;
+      } else {
+        errorMessage = `Unknown error: ${String(err)}`;
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: errorMessage,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  return server;
+}
+
+/**
+ * Start MCP server with stdio transport
+ */
+export async function startServer(): Promise<void> {
+  const server = createServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error("Overseer MCP server running on stdio");
+}

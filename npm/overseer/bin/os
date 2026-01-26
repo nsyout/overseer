@@ -1,0 +1,99 @@
+#!/usr/bin/env node
+/**
+ * Unified CLI entry point
+ * - `os mcp` → starts MCP server (Node, codemode)
+ * - `os <cmd>` → forwards to native binary
+ */
+import { existsSync, readFileSync } from "node:fs";
+import { execSync, spawn } from "node:child_process";
+import { platform, arch } from "node:process";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const require = createRequire(import.meta.url);
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const PLATFORMS = {
+  "darwin-arm64": "@dmmulroy/overseer-darwin-arm64",
+  "darwin-x64": "@dmmulroy/overseer-darwin-x64",
+  "linux-arm64": "@dmmulroy/overseer-linux-arm64",
+  "linux-x64": "@dmmulroy/overseer-linux-x64",
+  "linux-arm64-musl": "@dmmulroy/overseer-linux-arm64-musl",
+  "linux-x64-musl": "@dmmulroy/overseer-linux-x64-musl",
+};
+
+function isMusl() {
+  if (platform !== "linux") return false;
+  if (existsSync("/etc/alpine-release")) return true;
+  try {
+    const maps = readFileSync("/proc/self/maps", "utf8");
+    if (maps.includes("musl")) return true;
+  } catch {}
+  try {
+    const output = execSync("ldd --version 2>&1", { encoding: "utf8" });
+    return output.toLowerCase().includes("musl");
+  } catch (err) {
+    const stderr = err.stderr?.toString() || err.message || "";
+    return stderr.toLowerCase().includes("musl");
+  }
+}
+
+function getBinaryPath() {
+  if (process.env.OVERSEER_CLI_PATH) {
+    return process.env.OVERSEER_CLI_PATH;
+  }
+
+  const cpuArch = arch === "arm64" ? "arm64" : "x64";
+  const libc = isMusl() ? "-musl" : "";
+  const key = `${platform}-${cpuArch}${libc}`;
+  const pkg = PLATFORMS[key];
+
+  if (!pkg) {
+    console.error(`Unsupported platform: ${key}`);
+    console.error("Install via cargo: cargo install overseer");
+    process.exit(1);
+  }
+
+  try {
+    const pkgPath = require.resolve(`${pkg}/package.json`);
+    return join(dirname(pkgPath), "os");
+  } catch {
+    console.error(`Platform package not installed: ${pkg}`);
+    console.error("Try: npm install -g @dmmulroy/overseer");
+    process.exit(1);
+  }
+}
+
+const args = process.argv.slice(2);
+const command = args[0];
+
+// Handle `os mcp` - start MCP server
+if (command === "mcp") {
+  const binaryPath = getBinaryPath();
+  process.env.OVERSEER_CLI_PATH = binaryPath;
+
+  const serverPath = join(__dirname, "..", "dist", "index.js");
+  import(serverPath).catch((err) => {
+    console.error("Failed to start MCP server:", err.message);
+    process.exit(1);
+  });
+} else {
+  // All other commands - passthrough to native binary
+  const child = spawn(getBinaryPath(), args, {
+    stdio: "inherit",
+  });
+
+  child.on("error", (err) => {
+    console.error(`Failed to run os: ${err.message}`);
+    process.exit(1);
+  });
+
+  child.on("exit", (code, signal) => {
+    if (signal) {
+      process.kill(process.pid, signal);
+    } else {
+      process.exit(code ?? 0);
+    }
+  });
+}
