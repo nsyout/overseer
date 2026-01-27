@@ -1,15 +1,16 @@
 # MCP API LAYER
 
-**OVERVIEW:** VM sandbox APIs wrapping CLI with --json (tasks/learnings/vcs namespaces)
+**OVERVIEW:** VM sandbox APIs wrapping CLI with --json (tasks/learnings namespaces)
 
 ## FILES
 
 | File | Purpose | Key Exports |
 |------|---------|-------------|
-| `index.ts` | API exports | tasks, learnings, vcs namespaces |
-| `tasks.ts` | Task CRUD + state transitions | tasks.{list,get,create,update,start,complete,reopen,delete,block,unblock,nextReady} |
+| `index.ts` | API exports | tasks, learnings namespaces |
+| `tasks.ts` | Task CRUD + lifecycle | tasks.{list,get,create,update,start,complete,reopen,delete,block,unblock,nextReady,tree,search} |
 | `learnings.ts` | Learning attachment | learnings.{add,list,delete} |
-| `vcs.ts` | VCS abstraction | vcs.{detect,status,log,diff,commit} |
+
+**Note:** VCS ops integrated into task start/complete - not exposed as separate API.
 
 ## PATTERNS
 
@@ -46,12 +47,11 @@ try {
 }
 ```
 
-### VCS Abstraction
-- `vcs.detect()` returns backend type (jj/git)
-- CLI auto-detects via `.jj/` or `.git/`
-- `vcs.commit()` handles backend differences:
-  - jj: `jj describe -m "..." && jj new`
-  - git: `git add -A && git commit -m "..."`
+### VCS Integration (Automatic)
+- `tasks.start()` → creates VCS bookmark for task
+- `tasks.complete()` → squashes commits, captures SHA
+- VCS type auto-detected (jj-first, git fallback)
+- Agents don't need to manage VCS directly
 
 ## CONVENTIONS
 

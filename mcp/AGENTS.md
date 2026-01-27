@@ -14,9 +14,10 @@ src/
 └── api/
     ├── index.ts      # Re-exports
     ├── tasks.ts      # tasks.* -> os task *
-    ├── learnings.ts  # learnings.* -> os learning *
-    └── vcs.ts        # vcs.* -> os vcs *
+    └── learnings.ts  # learnings.* -> os learning *
 ```
+
+**Note:** VCS not exposed in sandbox - integrated into task start/complete automatically.
 
 ## WHERE TO LOOK
 
@@ -33,7 +34,7 @@ src/
 - **Branded IDs**: `TaskId`, `LearningId` with runtime validators (`isTaskId`, `parseTaskId`)
 - **Error classes**: `CliError` (exit code + stderr), `CliTimeoutError`, `ExecutionError` (stack trace)
 - **CLI bridge**: Always append `--json`, parse stdout, stderr on failure
-- **Sandbox globals**: Only `tasks`, `learnings`, `vcs`, `console`, timers, `Promise`
+- **Sandbox globals**: Only `tasks`, `learnings`, `console`, timers, `Promise`
 - **Async wrap**: All agent code wrapped in `(async () => { ... })()`
 - **ES Modules**: `.js` extensions in imports required
 
@@ -58,7 +59,8 @@ npm run watch          # tsc --watch for dev
 ```
 Agent code -> execute(code) -> vm.Script -> sandbox context
                                               ├── tasks.list() -> callCli(["task","list"]) -> spawn os -> JSON
-                                              ├── vcs.commit() -> callCli(["vcs","commit"]) -> spawn os -> JSON
-                                              └── ... 
+                                              ├── tasks.start() -> callCli(["task","start"]) -> VCS bookmark auto
+                                              ├── tasks.complete() -> callCli(["task","complete"]) -> VCS squash auto
+                                              └── learnings.add() -> callCli(["learning","add"]) -> spawn os -> JSON
                             <- truncateOutput(result) <- Promise resolves
 ```

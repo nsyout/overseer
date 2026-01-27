@@ -6,8 +6,9 @@
 
 | File | Purpose | Key Responsibilities |
 |------|---------|---------------------|
-| `mod.rs` | Module exports | TaskService, context API |
-| `task_service.rs` | Task orchestration | CRUD validation, cycle detection, depth enforcement, VCS commit capture |
+| `mod.rs` | Module exports | TaskService, WorkflowService, context API |
+| `task_service.rs` | Task orchestration | CRUD validation, cycle detection, depth enforcement |
+| `workflow_service.rs` | Task lifecycle | start/complete with VCS bookmarks, commit squashing |
 | `context.rs` | Context assembly | Ancestor chain traversal, progressive context building, learning aggregation |
 
 ## KEY ALGORITHMS
@@ -66,10 +67,12 @@ new_blocker → its blockers → their blockers → ... → task_id? (cycle!)
 - Added to Task in service layer before return
 - Recursive parent traversal: `depth = parent_depth + 1`
 
-### VCS Integration
-- Auto-populate commit_sha on task completion (task_service.rs:109-122)
+### VCS Integration (workflow_service.rs)
+- `start()`: Creates VCS bookmark named after task
+- `complete()`: Squashes commits, captures commit SHA
 - Graceful degradation if no VCS available
-- No VCS errors block task operations
+- VCS errors logged but never block task operations
+- Milestone completion: cleans up child bookmarks
 
 ### Context Assembly
 - Lazy: only built when task retrieved via `get()`
@@ -83,4 +86,5 @@ new_blocker → its blockers → their blockers → ... → task_id? (cycle!)
 3. Depth always recomputed, never trusted from DB
 4. Context chain matches depth semantics exactly
 5. Learning inheritance mirrors context inheritance
-6. VCS commit capture is best-effort, never fails task ops
+6. VCS ops are best-effort, never fail task state transitions
+7. Task state updated BEFORE VCS ops (workflow_service.rs:14-15)

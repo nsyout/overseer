@@ -4,8 +4,16 @@ Task orchestration for AI agents via MCP. SQLite-backed, native VCS (jj-lib + gi
 
 ## Install
 
+### Via npm
+
 ```bash
 npm install -g @dmmulroy/overseer
+```
+
+### Via skills.sh (for agents)
+
+```bash
+npx skills add dmmulroy/overseer
 ```
 
 ## Usage
@@ -40,7 +48,7 @@ os task complete <task-id>
 ┌─────────────────────────────────────┐
 │     Overseer MCP (Node.js)          │
 │  - Single "execute" tool (codemode) │
-│  - VM sandbox with tasks/vcs APIs   │
+│  - VM sandbox with tasks/learnings  │
 └─────────────────────────────────────┘
               │
               ▼
@@ -67,9 +75,9 @@ const login = await tasks.create({
   parentId: milestone.id
 });
 
-await tasks.start(login.id);
+await tasks.start(login.id);  // Creates VCS bookmark automatically
 // ... do work ...
-await tasks.complete(login.id, "Implemented with bcrypt");
+await tasks.complete(login.id, "Implemented with bcrypt");  // Squashes commits
 
 return { milestone, login };
 ```
@@ -106,15 +114,17 @@ learnings.list(taskId)
 learnings.delete(id)
 ```
 
-### vcs
+### VCS (Automatic)
 
-```javascript
-vcs.detect()            // { vcs_type: "jj"|"git"|"none", root }
-vcs.status()            // { files: [], current_commit_id }
-vcs.log(limit?)         // [{ id, description, author, timestamp }]
-vcs.diff(base?)         // [{ path, change_type }]
-vcs.commit(message)     // { commit_id }
-```
+VCS operations are integrated into task workflow - no direct API:
+
+| Operation | VCS Effect |
+|-----------|-----------|
+| `tasks.start(id)` | Creates bookmark `task/<id>`, records start commit |
+| `tasks.complete(id)` | Squashes commits since start, rebases onto parent |
+| `tasks.delete(id)` | Deletes VCS bookmark |
+
+VCS is best-effort - failures never block task state transitions.
 
 ## Progressive Context
 
@@ -133,7 +143,7 @@ const subtask = await tasks.get(subtaskId);
 
 ```bash
 # Tasks
-os task create -d "description" [--context "..."] [--parent ID] [--priority 1-10]
+os task create -d "description" [--context "..."] [--parent ID] [--priority 1-5]
 os task get <id>
 os task list [--parent ID] [--ready] [--completed]
 os task update <id> [-d "..."] [--context "..."] [--priority N]
@@ -152,7 +162,7 @@ os learning add <task-id> "content" [--source <task-id>]
 os learning list <task-id>
 os learning delete <id>
 
-# VCS
+# VCS (CLI only - automatic in MCP)
 os vcs detect
 os vcs status
 os vcs log [--limit N]

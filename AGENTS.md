@@ -1,7 +1,8 @@
 # OVERSEER PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-01-26  
-**VCS:** Jujutsu (no-git mode)
+**Generated:** 2026-01-27  
+**Commit:** adcadb4  
+**Branch:** main
 
 **Overseer** (`os`) - Codemode MCP server for agent task management. SQLite-backed, native VCS (jj-lib + gix). JJ-first.
 
@@ -11,7 +12,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                     Overseer (Node MCP)                     │
 │  - Single "execute" tool (codemode pattern)                 │
-│  - VM sandbox with tasks/vcs APIs                           │
+│  - VM sandbox with tasks/learnings APIs                     │
 │  - Spawns CLI, parses JSON                                  │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -33,7 +34,7 @@ overseer/
 │   └── src/
 │       ├── main.rs          # Entry (clap CLI)
 │       ├── commands/        # Subcommand handlers
-│       ├── core/            # TaskService, context
+│       ├── core/            # TaskService, WorkflowService, context
 │       ├── db/              # SQLite repos
 │       └── vcs/             # jj-lib + gix backends
 │
@@ -42,11 +43,15 @@ overseer/
 │       ├── index.ts         # Entry (stdio transport)
 │       ├── server.ts        # execute tool registration
 │       ├── executor.ts      # VM sandbox, CLI bridge
-│       └── api/             # tasks/learnings/vcs APIs
+│       └── api/             # tasks/learnings APIs
 │
 ├── npm/                     # Publishing (platform-specific binaries)
 │   ├── overseer/            # Main package (routing wrapper)
 │   └── scripts/             # Platform package generation
+│
+├── skills/                  # Agent skills (skills.sh compatible)
+│   ├── overseer/            # Task management skill
+│   └── overseer-plan/       # Plan-to-task conversion skill
 │
 └── docs/                    # Reference documentation
 ```
@@ -59,6 +64,7 @@ overseer/
 | Add MCP API | `mcp/src/api/` | Export in api/index.ts |
 | Task CRUD | `overseer/src/db/task_repo.rs` | SQL layer |
 | Task business logic | `overseer/src/core/task_service.rs` | Validation, hierarchy |
+| Task workflow (start/complete) | `overseer/src/core/workflow_service.rs` | VCS integration |
 | VCS operations | `overseer/src/vcs/` | jj.rs (primary), git.rs (fallback) |
 | Error types | `overseer/src/error.rs` | OsError enum |
 | Types/IDs | `overseer/src/types.rs`, `overseer/src/id.rs` | Domain types, ULID |
