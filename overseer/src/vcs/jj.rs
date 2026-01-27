@@ -528,24 +528,6 @@ mod tests {
     use super::*;
     use crate::testutil::{JjTestRepo, TestRepo};
 
-    /// Returns true if jj CLI is available (for tests that shell out to jj)
-    fn jj_cli_available() -> bool {
-        std::process::Command::new("jj")
-            .arg("--version")
-            .output()
-            .is_ok()
-    }
-
-    /// Skip test if jj CLI is not installed
-    macro_rules! require_jj_cli {
-        () => {
-            if !jj_cli_available() {
-                eprintln!("Skipping test: jj CLI not installed");
-                return;
-            }
-        };
-    }
-
     // === Basic operations (migrated from init_jj_repo) ===
 
     #[test]
@@ -584,7 +566,6 @@ mod tests {
 
     #[test]
     fn test_status_with_modified_file() {
-        require_jj_cli!();
         let repo = JjTestRepo::new().unwrap();
         repo.write_file("test.txt", "initial").unwrap();
         repo.commit("initial commit").unwrap();
@@ -600,7 +581,6 @@ mod tests {
 
     #[test]
     fn test_status_with_added_file() {
-        require_jj_cli!();
         let repo = JjTestRepo::new().unwrap();
         repo.write_file("new_file.txt", "new content").unwrap();
         repo.snapshot().unwrap(); // snapshot to detect working copy changes
@@ -612,7 +592,6 @@ mod tests {
 
     #[test]
     fn test_status_with_deleted_file() {
-        require_jj_cli!();
         let repo = JjTestRepo::new().unwrap();
         repo.write_file("to_delete.txt", "content").unwrap();
         repo.commit("add file").unwrap();
@@ -629,7 +608,6 @@ mod tests {
 
     #[test]
     fn test_log_with_multiple_commits() {
-        require_jj_cli!();
         let repo = JjTestRepo::new().unwrap();
 
         repo.write_file("file1.txt", "first").unwrap();
@@ -654,7 +632,6 @@ mod tests {
 
     #[test]
     fn test_log_limit() {
-        require_jj_cli!();
         let repo = JjTestRepo::new().unwrap();
 
         for i in 0..5 {
@@ -680,7 +657,6 @@ mod tests {
 
     #[test]
     fn test_diff_with_changes() {
-        require_jj_cli!();
         let repo = JjTestRepo::new().unwrap();
         repo.write_file("changed.txt", "some content").unwrap();
         repo.snapshot().unwrap(); // snapshot to detect working copy changes
@@ -712,7 +688,6 @@ mod tests {
 
     #[test]
     fn test_commit_nothing_to_commit() {
-        require_jj_cli!();
         let repo = JjTestRepo::new().unwrap();
 
         // Describe empty commit without creating new (via jj CLI)
@@ -766,7 +741,6 @@ mod tests {
 
     #[test]
     fn test_nested_file_operations() {
-        require_jj_cli!();
         let repo = JjTestRepo::new().unwrap();
 
         repo.write_file("src/main.rs", "fn main() {}").unwrap();

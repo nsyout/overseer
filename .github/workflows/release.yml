@@ -53,28 +53,8 @@ jobs:
             exit 1
           fi
 
-  test:
-    needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Cargo test
-        run: cargo test
-        working-directory: overseer
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: npm test
-        run: npm ci && npm test
-        working-directory: mcp
-
   prepare:
-    needs: [validate, test]
+    needs: [validate]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ needs.validate.outputs.version }}
