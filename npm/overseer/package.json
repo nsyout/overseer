@@ -1,6 +1,6 @@
 {
   "name": "@dmmulroy/overseer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Codemode MCP server for agent task management",
   "type": "module",
   "bin": {
@@ -12,12 +12,12 @@
     "dist/"
   ],
   "optionalDependencies": {
-    "@dmmulroy/overseer-darwin-arm64": "0.1.0",
-    "@dmmulroy/overseer-darwin-x64": "0.1.0",
-    "@dmmulroy/overseer-linux-arm64": "0.1.0",
-    "@dmmulroy/overseer-linux-x64": "0.1.0",
-    "@dmmulroy/overseer-linux-arm64-musl": "0.1.0",
-    "@dmmulroy/overseer-linux-x64-musl": "0.1.0"
+    "@dmmulroy/overseer-darwin-arm64": "0.2.0",
+    "@dmmulroy/overseer-darwin-x64": "0.2.0",
+    "@dmmulroy/overseer-linux-arm64": "0.2.0",
+    "@dmmulroy/overseer-linux-x64": "0.2.0",
+    "@dmmulroy/overseer-linux-arm64-musl": "0.2.0",
+    "@dmmulroy/overseer-linux-x64-musl": "0.2.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4"
