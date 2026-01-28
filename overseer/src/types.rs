@@ -31,7 +31,7 @@ pub struct Task {
     pub description: String,
     #[serde(default, skip_serializing)]
     pub context: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "context", skip_serializing_if = "Option::is_none")]
     pub context_chain: Option<TaskContext>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub learnings: Option<InheritedLearnings>,

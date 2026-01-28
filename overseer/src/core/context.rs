@@ -33,7 +33,9 @@ pub struct InheritedLearnings {
 pub struct TaskWithContext {
     #[serde(flatten)]
     pub task: Task,
+    #[serde(rename = "context")]
     pub progressive_context: ProgressiveContext,
+    #[serde(rename = "learnings")]
     pub inherited_learnings: InheritedLearnings,
 }
 
