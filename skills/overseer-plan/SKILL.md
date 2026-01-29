@@ -78,7 +78,7 @@ Every milestone must:
 await tasks.get("<id>");                    // TaskWithContext (full context + learnings)
 await tasks.list({ parentId: "<id>" });     // Task[] (children without context chain)
 await tasks.start("<id>");                  // Task (creates VCS bookmark)
-await tasks.complete("<id>", "result");     // Task (squashes commits)
+await tasks.complete("<id>", { result: "...", learnings: [...] });  // Task (squashes commits, bubbles learnings)
 ```
 
 **VCS Integration**: `start` and `complete` automatically manage VCS bookmarks and commits. No manual VCS operations needed.

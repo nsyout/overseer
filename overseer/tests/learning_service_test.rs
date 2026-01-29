@@ -41,7 +41,8 @@ fn test_add_learning() {
 
     assert_eq!(learning.task_id, task.id);
     assert_eq!(learning.content, "Always validate input");
-    assert_eq!(learning.source_task_id, None);
+    // When source not provided, origin defaults to task_id (self-origin)
+    assert_eq!(learning.source_task_id, Some(task.id));
 }
 
 #[test]

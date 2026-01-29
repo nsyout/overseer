@@ -40,14 +40,13 @@ const task = await tasks.create({
 // Get task with progressive context
 const full = await tasks.get(task.id);
 console.log(full.context); // { own, parent, milestone }
-console.log(full.learnings); // { milestone: [...], parent: [...] }
+console.log(full.learnings); // { own: [...] }
 
-// Complete and record learning
-await tasks.complete(task.id, "Used jose library");
-await learnings.add(task.id, "jose > jsonwebtoken for JOSE ops");
-
-// Commit via VCS
-await vcs.commit("feat: token refresh logic");
+// Complete with result and learnings (learnings bubble to immediate parent)
+await tasks.complete(task.id, {
+  result: "Used jose library",
+  learnings: ["jose > jsonwebtoken for JOSE ops"]
+});
 ```
 
 ## APIs
@@ -59,7 +58,7 @@ await vcs.commit("feat: token refresh logic");
 - `create(input)` - Create task
 - `update(id, input)` - Update task
 - `start(id)` - Mark started
-- `complete(id, result?)` - Mark complete
+- `complete(id, { result?, learnings? })` - Mark complete, learnings bubble to parent
 - `reopen(id)` - Reopen
 - `delete(id)` - Delete (cascades)
 - `block(taskId, blockerId)` - Add blocker
@@ -68,9 +67,7 @@ await vcs.commit("feat: token refresh logic");
 
 ### learnings
 
-- `add(taskId, content, sourceTaskId?)` - Add learning
-- `list(taskId)` - List learnings
-- `delete(id)` - Delete learning
+- `list(taskId)` - List learnings for task (learnings are added via `tasks.complete`)
 
 ### vcs
 

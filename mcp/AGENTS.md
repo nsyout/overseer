@@ -13,8 +13,8 @@ src/
 ├── types.ts          # Domain types, branded IDs, error classes
 └── api/
     ├── index.ts      # Re-exports
-    ├── tasks.ts      # tasks.* -> os task *
-    └── learnings.ts  # learnings.* -> os learning *
+    ├── tasks.ts      # tasks.* -> os task * (complete accepts { result?, learnings? })
+    └── learnings.ts  # learnings.list only (add/delete removed)
 ```
 
 **Note:** VCS not exposed in sandbox - integrated into task start/complete automatically.
@@ -60,7 +60,7 @@ npm run watch          # tsc --watch for dev
 Agent code -> execute(code) -> vm.Script -> sandbox context
                                               ├── tasks.list() -> callCli(["task","list"]) -> spawn os -> JSON
                                               ├── tasks.start() -> callCli(["task","start"]) -> VCS bookmark auto
-                                              ├── tasks.complete() -> callCli(["task","complete"]) -> VCS squash auto
-                                              └── learnings.add() -> callCli(["learning","add"]) -> spawn os -> JSON
+                                              ├── tasks.complete({result,learnings}) -> callCli(["task","complete","--learning",...]) -> VCS squash + bubble learnings
+                                              └── learnings.list() -> callCli(["learning","list"]) -> spawn os -> JSON
                             <- truncateOutput(result) <- Promise resolves
 ```

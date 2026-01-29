@@ -39,14 +39,15 @@ new_blocker → its blockers → their blockers → ... → task_id? (cycle!)
 1. `TaskService::assemble_context_chain`: Depth-first, inline DB access
 2. `context::build_progressive_context`: Ancestor chain traversal (more flexible)
 
-### Inherited Learnings Assembly (task_service.rs:219-265, context.rs:85-112)
+### Learnings Bubbling (workflow_service.rs)
 
-**Same depth-based logic as context**:
-- Depth 0: empty (milestones don't inherit)
-- Depth 1: milestone learnings
-- Depth 2: parent + milestone learnings
+**Learnings are added during task completion** and bubble to immediate parent:
+- When completing a task with learnings, they are attached to the task
+- Learnings also bubble (copy) to the immediate parent task only
+- `source_task_id` is preserved through bubbling (A1 → A → M keeps origin = A1)
+- Siblings see learnings only after code has merged to their common ancestor
 
-**Pattern**: Own learnings not included in inheritance - returned separately in `get()`.
+**Pattern**: Own learnings returned in `get()`. No separate add/delete operations.
 
 ## PATTERNS
 
@@ -69,7 +70,7 @@ new_blocker → its blockers → their blockers → ... → task_id? (cycle!)
 
 ### VCS Integration (workflow_service.rs)
 - `start()`: Creates VCS bookmark named after task
-- `complete()`: Squashes commits, captures commit SHA
+- `complete_with_learnings()`: Squashes commits, captures commit SHA, adds learnings, bubbles to parent
 - Graceful degradation if no VCS available
 - VCS errors logged but never block task operations
 - Milestone completion: cleans up child bookmarks
@@ -85,6 +86,6 @@ new_blocker → its blockers → their blockers → ... → task_id? (cycle!)
 2. Cycle detection BEFORE depth check
 3. Depth always recomputed, never trusted from DB
 4. Context chain matches depth semantics exactly
-5. Learning inheritance mirrors context inheritance
+5. Learnings bubble to immediate parent only on completion (preserves source_task_id)
 6. VCS ops are best-effort, never fail task state transitions
-7. Task state updated BEFORE VCS ops (workflow_service.rs:14-15)
+7. Task state updated BEFORE VCS ops (workflow_service.rs)

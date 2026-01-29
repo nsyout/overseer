@@ -77,6 +77,17 @@ impl<'a> TaskWorkflowService<'a> {
     }
 
     pub fn complete(&self, id: &TaskId, result: Option<&str>) -> Result<Task> {
+        self.complete_with_learnings(id, result, &[])
+    }
+
+    /// Complete a task with optional learnings.
+    /// Learnings are added to the task and bubbled to immediate parent.
+    pub fn complete_with_learnings(
+        &self,
+        id: &TaskId,
+        result: Option<&str>,
+        learnings: &[String],
+    ) -> Result<Task> {
         let task = self.task_service.get(id)?;
 
         // Idempotent: already completed
@@ -86,11 +97,11 @@ impl<'a> TaskWorkflowService<'a> {
 
         // Auto-detect milestone (depth 0)
         if task.depth == Some(0) {
-            return self.complete_milestone(id, result);
+            return self.complete_milestone_with_learnings(id, result, learnings);
         }
 
         // DB first - can fail safely
-        let completed_task = self.task_service.complete(id, result)?;
+        let completed_task = self.task_service.complete_with_learnings(id, result, learnings)?;
 
         // VCS second - best effort, already committed to DB
         if let Some(ref vcs) = self.vcs {
@@ -150,6 +161,16 @@ impl<'a> TaskWorkflowService<'a> {
     }
 
     pub fn complete_milestone(&self, id: &TaskId, result: Option<&str>) -> Result<Task> {
+        self.complete_milestone_with_learnings(id, result, &[])
+    }
+
+    /// Complete a milestone with optional learnings.
+    pub fn complete_milestone_with_learnings(
+        &self,
+        id: &TaskId,
+        result: Option<&str>,
+        learnings: &[String],
+    ) -> Result<Task> {
         let task = self.task_service.get(id)?;
 
         // Idempotent: already completed
@@ -160,7 +181,7 @@ impl<'a> TaskWorkflowService<'a> {
         // Not a milestone - delegate to regular complete (avoid infinite recursion)
         if task.depth != Some(0) {
             // DB first
-            let completed_task = self.task_service.complete(id, result)?;
+            let completed_task = self.task_service.complete_with_learnings(id, result, learnings)?;
 
             // VCS best effort
             if let Some(ref vcs) = self.vcs {
@@ -172,7 +193,7 @@ impl<'a> TaskWorkflowService<'a> {
         }
 
         // DB first - can fail safely
-        let completed_task = self.task_service.complete(id, result)?;
+        let completed_task = self.task_service.complete_with_learnings(id, result, learnings)?;
 
         // VCS second - best effort cleanup (don't rebase, just delete child bookmarks)
         if let Some(ref vcs) = self.vcs {
@@ -549,5 +570,247 @@ mod tests {
 
         let milestone_after = svc.get(&milestone.id).unwrap();
         assert!(!milestone_after.completed);
+    }
+
+    #[test]
+    fn test_complete_with_learnings_bubbles_to_parent() {
+        let conn = setup_db();
+        let service = TaskWorkflowService::new(&conn, None);
+        let svc = service.task_service();
+
+        // Create: milestone -> task -> subtask1, subtask2 (sibling prevents auto-complete)
+        let milestone = svc
+            .create(&CreateTaskInput {
+                description: "Milestone".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let task = svc
+            .create(&CreateTaskInput {
+                description: "Task".to_string(),
+                context: None,
+                parent_id: Some(milestone.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let subtask1 = svc
+            .create(&CreateTaskInput {
+                description: "Subtask 1".to_string(),
+                context: None,
+                parent_id: Some(task.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        // Second subtask prevents task from auto-completing
+        let _subtask2 = svc
+            .create(&CreateTaskInput {
+                description: "Subtask 2".to_string(),
+                context: None,
+                parent_id: Some(task.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        // Complete subtask1 with learnings
+        service
+            .complete_with_learnings(
+                &subtask1.id,
+                Some("done"),
+                &["Learning 1".to_string(), "Learning 2".to_string()],
+            )
+            .unwrap();
+
+        // Learnings should be on subtask1
+        let subtask_learnings = crate::db::learning_repo::list_learnings(&conn, &subtask1.id).unwrap();
+        assert_eq!(subtask_learnings.len(), 2);
+        assert_eq!(subtask_learnings[0].content, "Learning 1");
+        assert_eq!(subtask_learnings[1].content, "Learning 2");
+        // Origin should be subtask1 itself
+        assert_eq!(subtask_learnings[0].source_task_id, Some(subtask1.id.clone()));
+
+        // Learnings should have bubbled to task (parent)
+        let task_learnings = crate::db::learning_repo::list_learnings(&conn, &task.id).unwrap();
+        assert_eq!(task_learnings.len(), 2);
+        assert_eq!(task_learnings[0].content, "Learning 1");
+        // Origin preserved through bubble
+        assert_eq!(task_learnings[0].source_task_id, Some(subtask1.id.clone()));
+
+        // Task should NOT be auto-completed (subtask2 still pending)
+        let task_after = svc.get(&task.id).unwrap();
+        assert!(!task_after.completed);
+
+        // Learnings should NOT be on milestone yet (task not completed)
+        let milestone_learnings = crate::db::learning_repo::list_learnings(&conn, &milestone.id).unwrap();
+        assert_eq!(milestone_learnings.len(), 0);
+    }
+
+    #[test]
+    fn test_learnings_bubble_transitively_on_parent_complete() {
+        let conn = setup_db();
+        let service = TaskWorkflowService::new(&conn, None);
+        let svc = service.task_service();
+
+        // Create: milestone -> task -> subtask
+        let milestone = svc
+            .create(&CreateTaskInput {
+                description: "Milestone".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let task = svc
+            .create(&CreateTaskInput {
+                description: "Task".to_string(),
+                context: None,
+                parent_id: Some(milestone.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let subtask = svc
+            .create(&CreateTaskInput {
+                description: "Subtask".to_string(),
+                context: None,
+                parent_id: Some(task.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        // Complete subtask with learning
+        service
+            .complete_with_learnings(&subtask.id, None, &["From subtask".to_string()])
+            .unwrap();
+
+        // Task auto-completes (only child done), which bubbles learnings to milestone
+        let task_after = svc.get(&task.id).unwrap();
+        assert!(task_after.completed);
+
+        // Now milestone should have the learning (bubbled from task which had it from subtask)
+        let milestone_learnings = crate::db::learning_repo::list_learnings(&conn, &milestone.id).unwrap();
+        assert_eq!(milestone_learnings.len(), 1);
+        assert_eq!(milestone_learnings[0].content, "From subtask");
+        // Origin preserved: still points to subtask
+        assert_eq!(milestone_learnings[0].source_task_id, Some(subtask.id.clone()));
+    }
+
+    #[test]
+    fn test_sibling_sees_learnings_via_parent() {
+        let conn = setup_db();
+        let service = TaskWorkflowService::new(&conn, None);
+        let svc = service.task_service();
+
+        // Create: milestone -> task_a (with subtasks), task_b (with subtasks)
+        let milestone = svc
+            .create(&CreateTaskInput {
+                description: "Milestone".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let task_a = svc
+            .create(&CreateTaskInput {
+                description: "Task A".to_string(),
+                context: None,
+                parent_id: Some(milestone.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let subtask_a1 = svc
+            .create(&CreateTaskInput {
+                description: "Subtask A1".to_string(),
+                context: None,
+                parent_id: Some(task_a.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let subtask_a2 = svc
+            .create(&CreateTaskInput {
+                description: "Subtask A2".to_string(),
+                context: None,
+                parent_id: Some(task_a.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        // Complete A1 with learning
+        service
+            .complete_with_learnings(&subtask_a1.id, None, &["A1 discovery".to_string()])
+            .unwrap();
+
+        // A2 should see A1's learning via parent (task_a)
+        let task_a_learnings = crate::db::learning_repo::list_learnings(&conn, &task_a.id).unwrap();
+        assert_eq!(task_a_learnings.len(), 1);
+        assert_eq!(task_a_learnings[0].content, "A1 discovery");
+
+        // Start A2 and get its inherited learnings
+        let a2_with_context = svc.get(&subtask_a2.id).unwrap();
+        // InheritedLearnings.parent should contain A1's learning
+        assert!(a2_with_context.learnings.is_some());
+        let inherited = a2_with_context.learnings.unwrap();
+        assert_eq!(inherited.parent.len(), 1);
+        assert_eq!(inherited.parent[0].content, "A1 discovery");
+    }
+
+    #[test]
+    fn test_learnings_idempotent_on_retry() {
+        let conn = setup_db();
+        let service = TaskWorkflowService::new(&conn, None);
+        let svc = service.task_service();
+
+        let milestone = svc
+            .create(&CreateTaskInput {
+                description: "Milestone".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let task = svc
+            .create(&CreateTaskInput {
+                description: "Task".to_string(),
+                context: None,
+                parent_id: Some(milestone.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        // Complete with learning
+        service
+            .complete_with_learnings(&task.id, None, &["Important note".to_string()])
+            .unwrap();
+
+        // Try to complete again (idempotent) - should not duplicate learnings
+        service
+            .complete_with_learnings(&task.id, None, &["Important note".to_string()])
+            .unwrap();
+
+        // Should still only have 1 learning on milestone (not duplicated)
+        let milestone_learnings = crate::db::learning_repo::list_learnings(&conn, &milestone.id).unwrap();
+        assert_eq!(milestone_learnings.len(), 1);
     }
 }

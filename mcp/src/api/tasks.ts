@@ -87,13 +87,22 @@ export const tasks = {
   },
 
   /**
-   * Complete task with optional result.
+   * Complete task with optional result and learnings.
+   * Learnings are attached to the task and bubbled to immediate parent.
    * Auto-bubbles up if all siblings done and parent unblocked.
    * Squashes commits and captures commit SHA (if VCS available).
    */
-  async complete(id: string, result?: string): Promise<Task> {
+  async complete(
+    id: string,
+    options?: { result?: string; learnings?: string[] }
+  ): Promise<Task> {
     const args = ["task", "complete", id];
-    if (result) args.push("--result", result);
+    if (options?.result) args.push("--result", options.result);
+    if (options?.learnings) {
+      for (const learning of options.learnings) {
+        args.push("--learning", learning);
+      }
+    }
     return (await callCli(args)) as Task;
   },
 

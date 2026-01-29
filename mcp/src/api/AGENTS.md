@@ -8,9 +8,9 @@
 |------|---------|-------------|
 | `index.ts` | API exports | tasks, learnings namespaces |
 | `tasks.ts` | Task CRUD + lifecycle | tasks.{list,get,create,update,start,complete,reopen,delete,block,unblock,nextReady,tree,search} |
-| `learnings.ts` | Learning attachment | learnings.{add,list,delete} |
+| `learnings.ts` | Learning queries | learnings.{list} only (add/delete removed - learnings added via tasks.complete) |
 
-**Note:** VCS ops integrated into task start/complete - not exposed as separate API.
+**Note:** VCS ops integrated into task start/complete. Learnings added via `tasks.complete(id, { learnings })` and bubble to immediate parent.
 
 ## PATTERNS
 

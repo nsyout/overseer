@@ -96,6 +96,10 @@ pub struct CompleteArgs {
 
     #[arg(long)]
     pub result: Option<String>,
+
+    /// Add learnings discovered during this task (repeatable)
+    #[arg(long = "learning", action = clap::ArgAction::Append)]
+    pub learnings: Vec<String>,
 }
 
 #[derive(Args)]
@@ -204,7 +208,7 @@ pub fn handle_with_vcs(
         TaskCommand::Start { id } => Ok(TaskResult::One(workflow.start_follow_blockers(&id)?)),
 
         TaskCommand::Complete(args) => Ok(TaskResult::One(
-            workflow.complete(&args.id, args.result.as_deref())?,
+            workflow.complete_with_learnings(&args.id, args.result.as_deref(), &args.learnings)?,
         )),
 
         TaskCommand::Reopen { id } => Ok(TaskResult::One(svc.reopen(&id)?)),

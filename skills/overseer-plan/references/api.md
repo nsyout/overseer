@@ -28,8 +28,7 @@ interface TaskWithContext extends Task {
     milestone?: string;       // Root milestone's context (depth > 1)
   };
   learnings: {
-    milestone: Learning[];    // Inherited from root milestone
-    parent: Learning[];       // Inherited from parent task
+    own: Learning[];          // This task's learnings (bubbled from completed children)
   };
 }
 ```
@@ -66,7 +65,7 @@ declare const tasks: {
     parentId?: string;
   }): Promise<Task>;
   start(id: string): Promise<Task>;
-  complete(id: string, result?: string): Promise<Task>;
+  complete(id: string, input?: { result?: string; learnings?: string[] }): Promise<Task>;
   reopen(id: string): Promise<Task>;
   delete(id: string): Promise<void>;
   block(taskId: string, blockerId: string): Promise<void>;
@@ -82,7 +81,7 @@ declare const tasks: {
 | `create` | `Task` | Create task (priority must be 1-5) |
 | `update` | `Task` | Update description, context, priority, parentId |
 | `start` | `Task` | Mark started + **creates VCS bookmark** |
-| `complete` | `Task` | Mark complete + **squashes commits** |
+| `complete` | `Task` | Mark complete + **squashes commits** + bubbles learnings to parent |
 | `reopen` | `Task` | Reopen completed task |
 | `delete` | `void` | Delete task + **cleans up VCS bookmark** |
 | `block` | `void` | Add blocker (cannot be self, ancestor, or descendant) |
@@ -91,19 +90,17 @@ declare const tasks: {
 
 ## Learnings API
 
+Learnings are added via `tasks.complete(id, { learnings: [...] })` and bubble to immediate parent (preserving `sourceTaskId`).
+
 ```typescript
 declare const learnings: {
-  add(taskId: string, content: string, sourceTaskId?: string): Promise<Learning>;
   list(taskId: string): Promise<Learning[]>;
-  delete(id: string): Promise<void>;
 };
 ```
 
 | Method | Description |
 |--------|-------------|
-| `add` | Add learning to task (optionally from source task) |
 | `list` | List learnings for task |
-| `delete` | Delete learning by ID |
 
 ## VCS Integration
 
@@ -138,7 +135,9 @@ await tasks.start(subtask.id);
 
 // ... do implementation work ...
 
-// Complete task (auto-squashes commits) and add learning
-await tasks.complete(subtask.id, "Implemented using jose library");
-await learnings.add(subtask.id, "Use jose instead of jsonwebtoken");
+// Complete task with learnings (auto-squashes commits, bubbles learnings to parent)
+await tasks.complete(subtask.id, {
+  result: "Implemented using jose library",
+  learnings: ["Use jose instead of jsonwebtoken"]
+});
 ```

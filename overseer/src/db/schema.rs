@@ -2,7 +2,7 @@ use rusqlite::Connection;
 
 use crate::error::Result;
 
-const SCHEMA_VERSION: i32 = 2;
+const SCHEMA_VERSION: i32 = 3;
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
     let current_version: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
@@ -50,6 +50,10 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed);
             CREATE INDEX IF NOT EXISTS idx_learnings_task ON learnings(task_id);
             CREATE INDEX IF NOT EXISTS idx_blockers_blocker ON task_blockers(blocker_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_learnings_unique 
+                ON learnings(task_id, source_task_id, content);
+            CREATE INDEX IF NOT EXISTS idx_learnings_task_created 
+                ON learnings(task_id, created_at);
 
             PRAGMA journal_mode = WAL;
             "#,
@@ -70,6 +74,23 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             "#,
         )?;
         conn.pragma_update(None, "user_version", 2)?;
+    }
+
+    // Migration for version 2 -> 3: Add unique index for learning bubbling idempotency
+    // Also backfill source_task_id where NULL (set to task_id as origin)
+    if current_version == 2 {
+        conn.execute_batch(
+            r#"
+            BEGIN;
+            UPDATE learnings SET source_task_id = task_id WHERE source_task_id IS NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_learnings_unique 
+                ON learnings(task_id, source_task_id, content);
+            CREATE INDEX IF NOT EXISTS idx_learnings_task_created 
+                ON learnings(task_id, created_at);
+            COMMIT;
+            "#,
+        )?;
+        conn.pragma_update(None, "user_version", 3)?;
     }
 
     Ok(())

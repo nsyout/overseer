@@ -41,13 +41,15 @@ pub fn add_learning(
 ) -> Result<Learning> {
     let id = LearningId::new();
     let now_str = now().to_rfc3339();
+    // If no source provided, origin is self (the task being completed)
+    let origin = source_task_id.unwrap_or(task_id);
 
     conn.execute(
         r#"
         INSERT INTO learnings (id, task_id, content, source_task_id, created_at)
         VALUES (?1, ?2, ?3, ?4, ?5)
         "#,
-        params![&id, task_id, content, source_task_id, now_str],
+        params![&id, task_id, content, origin, now_str],
     )?;
 
     get_learning(conn, &id)?.ok_or_else(|| crate::error::OsError::LearningNotFound(id))
@@ -78,6 +80,33 @@ pub fn delete_learning(conn: &Connection, id: &LearningId) -> Result<()> {
     Ok(())
 }
 
+/// Bubble learnings from a completed task to its parent.
+/// Uses INSERT OR IGNORE for idempotency (unique index on task_id, source_task_id, content).
+/// Preserves original source_task_id through multiple bubbles (A1 -> A -> M keeps source = A1).
+pub fn bubble_learnings(conn: &Connection, from_id: &TaskId, to_id: &TaskId) -> Result<u64> {
+    let learnings = list_learnings(conn, from_id)?;
+    let mut bubbled = 0u64;
+
+    for learning in learnings {
+        let id = LearningId::new();
+        let now_str = now().to_rfc3339();
+        // Preserve the original source - if learning already has source_task_id, keep it
+        // Otherwise (shouldn't happen after migration), use from_id as origin
+        let origin_id = learning.source_task_id.as_ref().unwrap_or(from_id);
+
+        let result = conn.execute(
+            r#"
+            INSERT OR IGNORE INTO learnings (id, task_id, content, source_task_id, created_at)
+            VALUES (?1, ?2, ?3, ?4, ?5)
+            "#,
+            params![&id, to_id, &learning.content, origin_id, now_str],
+        )?;
+        bubbled += result as u64;
+    }
+
+    Ok(bubbled)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,7 +131,8 @@ mod tests {
 
         assert_eq!(learning.task_id, task.id);
         assert_eq!(learning.content, "test learning");
-        assert!(learning.source_task_id.is_none());
+        // When source not provided, origin defaults to task_id (self-origin)
+        assert_eq!(learning.source_task_id, Some(task.id));
     }
 
     #[test]

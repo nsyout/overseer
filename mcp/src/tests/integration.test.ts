@@ -345,15 +345,22 @@ describe("Integration Tests", () => {
           priority: 5
         });
         
-        // Add learning to milestone
-        await learnings.add(milestone.id, "Milestone learning");
-        
-        const task = await tasks.create({
-          description: "T",
+        // Create task under milestone, add sibling to prevent auto-complete
+        const task1 = await tasks.create({
+          description: "T1",
+          parentId: milestone.id,
+          priority: 5
+        });
+        const task2 = await tasks.create({
+          description: "T2",
           parentId: milestone.id,
           priority: 5
         });
         
+        // Complete task1 with learning - bubbles to milestone
+        await tasks.complete(task1.id, { learnings: ["Milestone learning"] });
+        
+        // task2 should see learning via milestone
         const next = await tasks.nextReady(milestone.id);
         return next?.learnings;
       `);
@@ -397,39 +404,55 @@ describe("Integration Tests", () => {
   });
 
   describe("Learnings API", () => {
-    it("should add and list learnings", async () => {
+    it("should add learnings via complete and list them", async () => {
       const result = await executeCode(`
-        const task = await tasks.create({ description: "Task with learning" });
+        const parent = await tasks.create({ description: "Parent" });
+        const task = await tasks.create({ 
+          description: "Task with learning",
+          parentId: parent.id
+        });
         
-        const learning = await learnings.add(
-          task.id,
-          "Use TypeScript for type safety"
-        );
+        // Add learnings via complete
+        await tasks.complete(task.id, { 
+          learnings: ["Use TypeScript for type safety"] 
+        });
         
+        // Learnings should be on task
         const list = await learnings.list(task.id);
         
-        return { learning, list };
+        return { list, content: list[0]?.content };
       `);
 
       assert.ok(result);
-      const { learning, list } = result as Record<string, unknown>;
-      assert.ok((learning as Record<string, unknown>).id);
+      const { list, content } = result as Record<string, unknown>;
       assert.ok(Array.isArray(list));
       assert.equal((list as unknown[]).length, 1);
+      assert.equal(content, "Use TypeScript for type safety");
     });
 
-    it("should delete learning", async () => {
+    it("should bubble learnings to parent on complete", async () => {
       const result = await executeCode(`
-        const task = await tasks.create({ description: "Task" });
-        const learning = await learnings.add(task.id, "Test learning");
+        const parent = await tasks.create({ description: "Parent" });
+        const task = await tasks.create({ 
+          description: "Task",
+          parentId: parent.id
+        });
         
-        await learnings.delete(learning.id);
-        const list = await learnings.list(task.id);
+        // Complete with learning - should bubble to parent
+        await tasks.complete(task.id, { learnings: ["Test learning"] });
         
-        return list.length;
+        // Parent should have the learning
+        const parentLearnings = await learnings.list(parent.id);
+        
+        return { 
+          parentCount: parentLearnings.length,
+          content: parentLearnings[0]?.content
+        };
       `);
 
-      assert.equal(result, 0);
+      const res = result as Record<string, unknown>;
+      assert.equal(res.parentCount, 1);
+      assert.equal(res.content, "Test learning");
     });
 
     it("should include learnings in task get", async () => {
@@ -437,14 +460,22 @@ describe("Integration Tests", () => {
         const milestone = await tasks.create({
           description: "Milestone"
         });
-        await learnings.add(milestone.id, "Milestone learning");
         
-        const task = await tasks.create({
-          description: "Task",
+        // Create task and sibling to prevent milestone auto-complete
+        const task1 = await tasks.create({
+          description: "Task 1",
+          parentId: milestone.id
+        });
+        const task2 = await tasks.create({
+          description: "Task 2",
           parentId: milestone.id
         });
         
-        const fetched = await tasks.get(task.id);
+        // Complete task1 with learning - bubbles to milestone
+        await tasks.complete(task1.id, { learnings: ["Milestone learning"] });
+        
+        // task2 should inherit milestone learnings
+        const fetched = await tasks.get(task2.id);
         return fetched.learnings;
       `);
 
@@ -515,34 +546,37 @@ describe("Integration Tests", () => {
           priority: 1
         });
         
-        // Add milestone learning
-        await learnings.add(milestone.id, "Follow existing patterns");
-        
-        // Create subtask
-        const task = await tasks.create({
+        // Create tasks (sibling to prevent auto-complete of milestone)
+        const task1 = await tasks.create({
           description: "Implement core logic",
           context: "Handle edge cases",
           parentId: milestone.id,
           priority: 2
         });
+        const task2 = await tasks.create({
+          description: "Write tests",
+          parentId: milestone.id,
+          priority: 3
+        });
         
         // Get task with inherited context
-        const fetched = await tasks.get(task.id);
+        const fetched = await tasks.get(task1.id);
         
-        // Start and complete task
-        await tasks.start(task.id);
-        await tasks.complete(task.id, "Implemented successfully");
+        // Start and complete task1 with learning - bubbles to milestone
+        await tasks.start(task1.id);
+        await tasks.complete(task1.id, { 
+          result: "Implemented successfully",
+          learnings: ["Follow existing patterns", "Consider performance"]
+        });
         
-        // Add learning
-        await learnings.add(task.id, "Consider performance", task.id);
-        
-        // Get final state
-        const final = await tasks.get(task.id);
+        // task2 should see learnings via milestone
+        const task2WithContext = await tasks.get(task2.id);
         
         return {
-          hasContext: !!final.context.milestone,
-          hasLearnings: final.learnings.milestone.length > 0,
-          isCompleted: final.completed
+          hasContext: !!task2WithContext.context.milestone,
+          hasLearnings: task2WithContext.learnings.milestone.length > 0,
+          learningCount: task2WithContext.learnings.milestone.length,
+          isTask1Completed: (await tasks.get(task1.id)).completed
         };
       `);
 
@@ -550,7 +584,8 @@ describe("Integration Tests", () => {
       const workflow = result as Record<string, boolean | number>;
       assert.equal(workflow.hasContext, true);
       assert.equal(workflow.hasLearnings, true);
-      assert.equal(workflow.isCompleted, true);
+      assert.equal(workflow.learningCount, 2);
+      assert.equal(workflow.isTask1Completed, true);
     });
   });
 });

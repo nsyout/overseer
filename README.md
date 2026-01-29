@@ -77,7 +77,10 @@ const login = await tasks.create({
 
 await tasks.start(login.id);  // Creates VCS bookmark automatically
 // ... do work ...
-await tasks.complete(login.id, "Implemented with bcrypt");  // Squashes commits
+await tasks.complete(login.id, {  // Squashes commits, bubbles learnings to parent
+  result: "Implemented with bcrypt",
+  learnings: ["bcrypt rounds should be 12+ for production"]
+});
 
 return { milestone, login };
 ```
@@ -98,7 +101,7 @@ tasks.get(id)           // Returns TaskWithContext
 tasks.list({ parentId?, ready?, completed? })
 tasks.update(id, { description?, context?, priority? })
 tasks.start(id)
-tasks.complete(id, result?)
+tasks.complete(id, { result?, learnings? })  // Learnings bubble to immediate parent
 tasks.reopen(id)
 tasks.delete(id)
 tasks.block(taskId, blockerId)
@@ -109,9 +112,7 @@ tasks.nextReady(milestoneId?)
 ### learnings
 
 ```javascript
-learnings.add(taskId, content, sourceTaskId?)
-learnings.list(taskId)
-learnings.delete(id)
+learnings.list(taskId)  // Learnings are added via tasks.complete()
 ```
 
 ### VCS (Automatic)
@@ -128,15 +129,14 @@ VCS is best-effort - failures never block task state transitions.
 
 ## Progressive Context
 
-Tasks inherit context + learnings from ancestors:
+Tasks inherit context from ancestors. Learnings bubble to immediate parent on completion (preserving original `sourceTaskId`):
 
 ```javascript
 const subtask = await tasks.get(subtaskId);
 // subtask.context.own       - This task's context
 // subtask.context.parent    - Parent task context (depth > 0)
 // subtask.context.milestone - Root milestone context (depth > 1)
-// subtask.learnings.parent  - Parent's learnings
-// subtask.learnings.milestone - Milestone's learnings
+// subtask.learnings.own     - This task's learnings (added when completing children)
 ```
 
 ## CLI Reference
@@ -148,7 +148,7 @@ os task get <id>
 os task list [--parent ID] [--ready] [--completed]
 os task update <id> [-d "..."] [--context "..."] [--priority N]
 os task start <id>
-os task complete <id> [--result "..."]
+os task complete <id> [--result "..."] [--learning "..."]...
 os task reopen <id>
 os task delete <id>
 os task block <id> --by <blocker-id>
@@ -157,10 +157,8 @@ os task next-ready [--milestone ID]
 os task tree [ID]
 os task search "query"
 
-# Learnings
-os learning add <task-id> "content" [--source <task-id>]
+# Learnings (added via task complete --learning)
 os learning list <task-id>
-os learning delete <id>
 
 # VCS (CLI only - automatic in MCP)
 os vcs detect

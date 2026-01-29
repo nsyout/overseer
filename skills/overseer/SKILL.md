@@ -1,6 +1,6 @@
 ---
 name: overseer
-description: Manage tasks via Overseer MCP codemode. Use when tracking multi-session work, breaking down implementation, or persisting context for handoffs.
+description: Manage tasks via Overseer codemode MCP. Use when tracking multi-session work, breaking down implementation, or persisting context for handoffs.
 license: MIT
 metadata:
   author: dmmulroy
@@ -17,7 +17,7 @@ Overseer tasks are **tickets** - structured artifacts with comprehensive context
 - **Context**: Full background, requirements, approach (issue body)
 - **Result**: Implementation details, decisions, outcomes (PR description)
 
-Think: "Would someone understand the what, why, and how from this task alone?"
+Think: "Would someone understand the what, why, and how from this task alone AND what success looks like?"
 
 ## Task IDs are Ephemeral
 
@@ -75,17 +75,18 @@ if (!task) return "No ready tasks";
 console.log(task.context.own);       // This task's context
 console.log(task.context.parent);    // Parent's context (if depth > 0)
 console.log(task.context.milestone); // Root milestone context (if depth > 1)
-console.log(task.learnings.parent);  // Inherited learnings from parent
-console.log(task.learnings.milestone); // Inherited learnings from milestone
+console.log(task.learnings.own);     // Learnings attached to this task (bubbled from children)
 
 // 3. Start work (auto-creates VCS bookmark)
 await tasks.start(task.id);
 
-// 4. Implement... add learnings as you go
-await learnings.add(task.id, "bcrypt rounds should be 12 for production");
+// 4. Implement...
 
-// 5. Complete (auto-squashes commits)
-await tasks.complete(task.id, "Implemented login endpoint with JWT tokens");
+// 5. Complete with learnings (auto-squashes commits, bubbles learnings to parent)
+await tasks.complete(task.id, {
+  result: "Implemented login endpoint with JWT tokens",
+  learnings: ["bcrypt rounds should be 12 for production"]
+});
 ```
 
 See @file references/workflow.md for detailed workflow guidance.
@@ -100,9 +101,8 @@ const task = await tasks.get(taskId); // Returns TaskWithContext
 // task.context.parent   - parent task's context (if depth > 0)
 // task.context.milestone - root milestone's context (if depth > 1)
 
-// Inherited learnings
-// task.learnings.milestone - learnings from root milestone
-// task.learnings.parent    - learnings from parent task
+// Task's own learnings (bubbled from completed children)
+// task.learnings.own - learnings attached to this task
 ```
 
 ## Return Type Summary

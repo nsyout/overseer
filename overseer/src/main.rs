@@ -177,6 +177,7 @@ fn clone_task_cmd(cmd: &TaskCommand) -> TaskCommand {
         TaskCommand::Complete(args) => TaskCommand::Complete(task::CompleteArgs {
             id: args.id.clone(),
             result: args.result.clone(),
+            learnings: args.learnings.clone(),
         }),
         TaskCommand::Reopen { id } => TaskCommand::Reopen { id: id.clone() },
         TaskCommand::Delete { id } => TaskCommand::Delete { id: id.clone() },

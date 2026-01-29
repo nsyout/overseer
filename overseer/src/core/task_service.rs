@@ -160,6 +160,18 @@ impl<'a> TaskService<'a> {
     }
 
     pub fn complete(&self, id: &TaskId, result: Option<&str>) -> Result<Task> {
+        self.complete_with_learnings(id, result, &[])
+    }
+
+    /// Complete a task with optional learnings that get attached and bubbled to parent.
+    /// Learnings are first added to this task, then bubbled to immediate parent (if any).
+    /// This keeps learnings aligned with VCS state - siblings only see learnings after merge.
+    pub fn complete_with_learnings(
+        &self,
+        id: &TaskId,
+        result: Option<&str>,
+        learnings: &[String],
+    ) -> Result<Task> {
         if !task_repo::task_exists(self.conn, id)? {
             return Err(OsError::TaskNotFound(id.clone()));
         }
@@ -168,10 +180,21 @@ impl<'a> TaskService<'a> {
             return Err(OsError::PendingChildren);
         }
 
+        // Add learnings to this task first (origin = self)
+        for content in learnings {
+            learning_repo::add_learning(self.conn, id, content, None)?;
+        }
+
         // Auto-populate commit_sha if VCS is available (Invariant #6)
         let commit_sha = Self::get_current_commit_sha();
 
         let mut task = task_repo::complete_task(self.conn, id, result, commit_sha.as_deref())?;
+
+        // Bubble all learnings (including newly added) to immediate parent
+        if let Some(ref parent_id) = task.parent_id {
+            learning_repo::bubble_learnings(self.conn, id, parent_id)?;
+        }
+
         task.depth = Some(self.get_depth(id)?);
         Ok(task)
     }
