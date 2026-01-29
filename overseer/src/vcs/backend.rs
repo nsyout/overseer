@@ -116,6 +116,9 @@ pub struct CommitResult {
     pub message: String,
 }
 
+/// VCS backend trait - implemented by jj (primary) and git (fallback).
+/// Some methods are reserved for future use or testing only.
+#[allow(dead_code)]
 pub trait VcsBackend: Send + Sync {
     fn vcs_type(&self) -> VcsType;
     fn root(&self) -> &str;

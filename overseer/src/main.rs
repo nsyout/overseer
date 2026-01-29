@@ -19,8 +19,8 @@ fn fmt_id(id: &impl std::fmt::Display) -> String {
 mod testutil;
 
 use commands::{
-    data, learning, task, vcs as vcs_cmd, DataCommand, DataResult, LearningCommand, LearningResult,
-    TaskCommand, TaskResult, VcsCommand,
+    data, learning, task, ui, vcs as vcs_cmd, DataCommand, DataResult, LearningCommand,
+    LearningResult, TaskCommand, TaskResult, UiArgs, VcsCommand,
 };
 use vcs::backend::{ChangeType, FileStatusKind};
 
@@ -51,6 +51,9 @@ enum Command {
 
     #[command(subcommand)]
     Data(DataCommand),
+
+    /// Launch the UI server
+    Ui(UiArgs),
 
     Init,
 }
@@ -101,6 +104,7 @@ fn run(command: &Command, db_path: &PathBuf) -> error::Result<String> {
             match task::handle_with_vcs(&conn, clone_task_cmd(cmd), vcs)? {
                 TaskResult::One(t) => Ok(serde_json::to_string_pretty(&t)?),
                 TaskResult::OneWithContext(t) => Ok(serde_json::to_string_pretty(&t)?),
+                TaskResult::MaybeOneWithContext(opt) => Ok(serde_json::to_string_pretty(&opt)?),
                 TaskResult::Many(ts) => Ok(serde_json::to_string_pretty(&ts)?),
                 TaskResult::Deleted => Ok(serde_json::json!({ "deleted": true }).to_string()),
                 TaskResult::Tree(tree) => Ok(serde_json::to_string_pretty(&tree)?),
@@ -134,13 +138,14 @@ fn run(command: &Command, db_path: &PathBuf) -> error::Result<String> {
                     "tasks": tasks,
                     "learnings": learnings
                 }))?),
-                DataResult::Imported { tasks, learnings } => {
-                    Ok(serde_json::to_string_pretty(&serde_json::json!({
-                        "imported": true,
-                        "tasks": tasks,
-                        "learnings": learnings
-                    }))?)
-                }
+            }
+        }
+        Command::Ui(args) => {
+            // UI command handles its own output (interactive)
+            match ui::handle(clone_ui_args(args))? {
+                ui::UiResult::Started { port, url } => Ok(
+                    serde_json::json!({ "started": true, "port": port, "url": url }).to_string(),
+                ),
             }
         }
     }
@@ -228,10 +233,13 @@ fn clone_data_cmd(cmd: &DataCommand) -> DataCommand {
         DataCommand::Export { output } => DataCommand::Export {
             output: output.clone(),
         },
-        DataCommand::Import { file, clear } => DataCommand::Import {
-            file: file.clone(),
-            clear: *clear,
-        },
+    }
+}
+
+fn clone_ui_args(args: &UiArgs) -> UiArgs {
+    UiArgs {
+        port: args.port,
+        no_open: args.no_open,
     }
 }
 
@@ -240,35 +248,30 @@ fn print_human(command: &Command, output: &str) {
         Command::Init => println!("Initialized overseer database"),
         Command::Task(TaskCommand::Delete { .. }) => println!("Task deleted"),
         Command::Task(TaskCommand::NextReady(_)) => {
-            if let Ok(tasks) = serde_json::from_str::<Vec<types::Task>>(output) {
-                if tasks.is_empty() {
-                    println!("No ready tasks found");
-                } else {
-                    // Should never happen, but handle gracefully
-                    println!("{}", output);
-                }
-            } else {
-                // Parse JSON to extract task info
-                if let Ok(json) = serde_json::from_str::<serde_json::Value>(output) {
-                    if let Some(task) = json.as_object() {
-                        if let Some(id) = task.get("id").and_then(|v| v.as_str()) {
-                            println!("Next ready task: {}", &id[..8.min(id.len())]);
-                        }
-                        if let Some(desc) = task.get("description").and_then(|v| v.as_str()) {
-                            println!("  Description: {}", desc);
-                        }
-                        if let Some(priority) = task.get("priority").and_then(|v| v.as_i64()) {
-                            println!("  Priority: {}", priority);
-                        }
-                        if let Some(depth) = task.get("depth").and_then(|v| v.as_i64()) {
-                            println!("  Depth: {}", depth);
-                        }
-                    } else {
-                        println!("{}", output);
+            // Handle MaybeOneWithContext result (null or object)
+            if output.trim() == "null" {
+                println!("No ready tasks found");
+            } else if let Ok(json) = serde_json::from_str::<serde_json::Value>(output) {
+                // Parse TaskWithContext format - task is nested under "task" key
+                let task_obj = json.get("task").unwrap_or(&json);
+                if let Some(task) = task_obj.as_object() {
+                    if let Some(id) = task.get("id").and_then(|v| v.as_str()) {
+                        println!("Next ready task: {}", id);
+                    }
+                    if let Some(desc) = task.get("description").and_then(|v| v.as_str()) {
+                        println!("  Description: {}", desc);
+                    }
+                    if let Some(priority) = task.get("priority").and_then(|v| v.as_i64()) {
+                        println!("  Priority: {}", priority);
+                    }
+                    if let Some(depth) = task.get("depth").and_then(|v| v.as_i64()) {
+                        println!("  Depth: {}", depth);
                     }
                 } else {
                     println!("{}", output);
                 }
+            } else {
+                println!("{}", output);
             }
         }
         Command::Task(TaskCommand::Tree(_)) => {
@@ -451,19 +454,9 @@ fn print_human(command: &Command, output: &str) {
                 println!("{}", output);
             }
         }
-        Command::Data(DataCommand::Import { .. }) => {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(output) {
-                if let (Some(tasks), Some(learnings)) = (
-                    json.get("tasks").and_then(|v| v.as_u64()),
-                    json.get("learnings").and_then(|v| v.as_u64()),
-                ) {
-                    println!("Imported {} tasks and {} learnings", tasks, learnings);
-                } else {
-                    println!("{}", output);
-                }
-            } else {
-                println!("{}", output);
-            }
+
+        Command::Ui(_) => {
+            // UI command prints interactively during execution, nothing extra needed
         }
     }
 }

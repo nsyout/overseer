@@ -47,11 +47,13 @@ impl TaskId {
     }
 
     /// Extract the ULID part (without prefix)
+    #[allow(dead_code)]
     pub fn ulid_part(&self) -> &str {
         self.0.strip_prefix(Self::PREFIX).unwrap_or(&self.0)
     }
 
     /// Full string representation (with prefix)
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -116,10 +118,12 @@ impl LearningId {
         Self(format!("{}{}", Self::PREFIX, ulid))
     }
 
+    #[allow(dead_code)]
     pub fn ulid_part(&self) -> &str {
         self.0.strip_prefix(Self::PREFIX).unwrap_or(&self.0)
     }
 
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &str {
         &self.0
     }

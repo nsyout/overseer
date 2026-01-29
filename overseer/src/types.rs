@@ -1,3 +1,6 @@
+// Allow unreachable_patterns for serde rename conflict (context vs context_chain)
+#![allow(unreachable_patterns)]
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +26,9 @@ pub struct InheritedLearnings {
     pub parent: Vec<Learning>,
 }
 
+/// Task struct with dual-purpose context fields:
+/// - `context`: raw string stored in DB (never serialized)
+/// - `context_chain`: structured chain for JSON output (serializes as "context")
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {

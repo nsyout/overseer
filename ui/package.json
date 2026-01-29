@@ -1,0 +1,19 @@
+{
+  "name": "@overseer/ui",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev:api": "tsx watch src/api/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.9",
+    "hono": "^4.11.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
