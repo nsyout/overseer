@@ -47,11 +47,31 @@ impl<'a> TaskWorkflowService<'a> {
         if let Some(ref vcs) = self.vcs {
             let bookmark = format!("task/{}", id);
 
-            if vcs.create_bookmark(&bookmark, None).is_ok() {
+            // Create or reuse existing bookmark
+            let bookmark_exists = match vcs.create_bookmark(&bookmark, None) {
+                Ok(()) => true,
+                Err(VcsError::BookmarkExists(_)) => true,
+                Err(e) => {
+                    eprintln!("warn: failed to create bookmark for task {id}: {e}");
+                    false
+                }
+            };
+
+            // Record bookmark and checkout if branch exists
+            let checked_out = if bookmark_exists {
                 if let Err(e) = task_repo::set_bookmark(self.conn, id, &bookmark) {
                     eprintln!("warn: failed to record bookmark for task {id}: {e}");
                 }
-            }
+                match vcs.checkout(&bookmark) {
+                    Ok(()) => true,
+                    Err(e) => {
+                        eprintln!("warn: failed to checkout bookmark for task {id}: {e}");
+                        false
+                    }
+                }
+            } else {
+                false
+            };
 
             if let Ok(sha) = vcs.current_commit_id() {
                 if let Err(e) = task_repo::set_start_commit(self.conn, id, &sha) {
@@ -59,8 +79,10 @@ impl<'a> TaskWorkflowService<'a> {
                 }
             }
 
-            // Best effort WIP commit - VCS may reject if nothing staged
-            let _ = vcs.commit(&format!("WIP: {}", task.description));
+            // Only WIP commit if we successfully checked out to avoid committing on wrong branch
+            if checked_out {
+                let _ = vcs.commit(&format!("WIP: {}", task.description));
+            }
         }
 
         self.task_service.get(id)
@@ -101,7 +123,9 @@ impl<'a> TaskWorkflowService<'a> {
         }
 
         // DB first - can fail safely
-        let completed_task = self.task_service.complete_with_learnings(id, result, learnings)?;
+        let completed_task = self
+            .task_service
+            .complete_with_learnings(id, result, learnings)?;
 
         // VCS second - best effort, already committed to DB
         if let Some(ref vcs) = self.vcs {
@@ -181,7 +205,9 @@ impl<'a> TaskWorkflowService<'a> {
         // Not a milestone - delegate to regular complete (avoid infinite recursion)
         if task.depth != Some(0) {
             // DB first
-            let completed_task = self.task_service.complete_with_learnings(id, result, learnings)?;
+            let completed_task = self
+                .task_service
+                .complete_with_learnings(id, result, learnings)?;
 
             // VCS best effort
             if let Some(ref vcs) = self.vcs {
@@ -193,7 +219,9 @@ impl<'a> TaskWorkflowService<'a> {
         }
 
         // DB first - can fail safely
-        let completed_task = self.task_service.complete_with_learnings(id, result, learnings)?;
+        let completed_task = self
+            .task_service
+            .complete_with_learnings(id, result, learnings)?;
 
         // VCS second - best effort cleanup (don't rebase, just delete child bookmarks)
         if let Some(ref vcs) = self.vcs {
@@ -630,12 +658,16 @@ mod tests {
             .unwrap();
 
         // Learnings should be on subtask1
-        let subtask_learnings = crate::db::learning_repo::list_learnings(&conn, &subtask1.id).unwrap();
+        let subtask_learnings =
+            crate::db::learning_repo::list_learnings(&conn, &subtask1.id).unwrap();
         assert_eq!(subtask_learnings.len(), 2);
         assert_eq!(subtask_learnings[0].content, "Learning 1");
         assert_eq!(subtask_learnings[1].content, "Learning 2");
         // Origin should be subtask1 itself
-        assert_eq!(subtask_learnings[0].source_task_id, Some(subtask1.id.clone()));
+        assert_eq!(
+            subtask_learnings[0].source_task_id,
+            Some(subtask1.id.clone())
+        );
 
         // Learnings should have bubbled to task (parent)
         let task_learnings = crate::db::learning_repo::list_learnings(&conn, &task.id).unwrap();
@@ -649,7 +681,8 @@ mod tests {
         assert!(!task_after.completed);
 
         // Learnings should NOT be on milestone yet (task not completed)
-        let milestone_learnings = crate::db::learning_repo::list_learnings(&conn, &milestone.id).unwrap();
+        let milestone_learnings =
+            crate::db::learning_repo::list_learnings(&conn, &milestone.id).unwrap();
         assert_eq!(milestone_learnings.len(), 0);
     }
 
@@ -700,11 +733,15 @@ mod tests {
         assert!(task_after.completed);
 
         // Now milestone should have the learning (bubbled from task which had it from subtask)
-        let milestone_learnings = crate::db::learning_repo::list_learnings(&conn, &milestone.id).unwrap();
+        let milestone_learnings =
+            crate::db::learning_repo::list_learnings(&conn, &milestone.id).unwrap();
         assert_eq!(milestone_learnings.len(), 1);
         assert_eq!(milestone_learnings[0].content, "From subtask");
         // Origin preserved: still points to subtask
-        assert_eq!(milestone_learnings[0].source_task_id, Some(subtask.id.clone()));
+        assert_eq!(
+            milestone_learnings[0].source_task_id,
+            Some(subtask.id.clone())
+        );
     }
 
     #[test]
@@ -810,7 +847,8 @@ mod tests {
             .unwrap();
 
         // Should still only have 1 learning on milestone (not duplicated)
-        let milestone_learnings = crate::db::learning_repo::list_learnings(&conn, &milestone.id).unwrap();
+        let milestone_learnings =
+            crate::db::learning_repo::list_learnings(&conn, &milestone.id).unwrap();
         assert_eq!(milestone_learnings.len(), 1);
     }
 }
