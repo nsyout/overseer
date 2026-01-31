@@ -16,7 +16,7 @@ if (!task) {
 }
 ```
 
-`nextReady()` returns a `Task` with inherited context and learnings populated.
+`nextReady()` returns a `TaskWithContext` (task with inherited context and learnings) or `null`.
 
 ## 2. Review Context
 

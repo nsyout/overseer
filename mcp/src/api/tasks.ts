@@ -79,7 +79,7 @@ export const tasks = {
   /**
    * Mark task as started.
    * Follows blockers to find startable work, cascades to deepest leaf.
-   * Creates VCS bookmark for started task.
+   * Creates VCS bookmark for started task and records start commit.
    * Returns the task that was actually started.
    *
    * **Requires VCS**: Must be in a jj or git repository.

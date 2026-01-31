@@ -237,12 +237,12 @@ function TaskItem({ task, isSelected, onSelect, depth }: TaskItemProps) {
 
   // Status color
   const statusColor = task.completed
-    ? "bg-[var(--color-success)]"
+    ? "bg-[var(--color-status-done)]"
     : isBlocked
-      ? "bg-[var(--color-error)]"
+      ? "bg-[var(--color-status-blocked)]"
       : isInProgress
-        ? "bg-[var(--color-accent)]"
-        : "bg-[var(--color-text-muted)]";
+        ? "bg-[var(--color-status-active)]"
+        : "bg-[var(--color-status-pending)]";
 
   return (
     <button

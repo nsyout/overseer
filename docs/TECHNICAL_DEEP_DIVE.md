@@ -1,5 +1,7 @@
 # Overseer Technical Deep Dive
 
+> **⚠️ HISTORICAL DOCUMENT**: Generated during early development. Some API signatures and implementation details may be outdated. For current API reference, see `docs/MCP.md` and `docs/CLI.md`.
+
 **Comprehensive Architecture Analysis**
 
 ---

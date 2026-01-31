@@ -36,7 +36,7 @@ export function App() {
           {tasksLoading ? (
             <div className="p-4 text-[var(--color-text-muted)]">Loading...</div>
           ) : tasksError ? (
-            <div className="p-4 text-[var(--color-error)]">
+            <div className="p-4 text-[var(--color-status-blocked)]">
               Error: {tasksError.message}
             </div>
           ) : (
@@ -56,7 +56,7 @@ export function App() {
             Loading...
           </div>
         ) : tasksError ? (
-          <div className="flex-1 flex items-center justify-center text-[var(--color-error)]">
+          <div className="flex-1 flex items-center justify-center text-[var(--color-status-blocked)]">
             Error: {tasksError.message}
           </div>
         ) : (

@@ -318,12 +318,12 @@ const TaskNodeComponent = memo(function TaskNodeComponent({
 
   // Status styling
   const statusColor = task.completed
-    ? "var(--color-success)"
+    ? "var(--color-status-done)"
     : isBlocked
-      ? "var(--color-error)"
+      ? "var(--color-status-blocked)"
       : isInProgress
-        ? "var(--color-accent)"
-        : "var(--color-text-muted)";
+        ? "var(--color-status-active)"
+        : "var(--color-status-pending)";
 
   const statusLabel = task.completed
     ? "Done"

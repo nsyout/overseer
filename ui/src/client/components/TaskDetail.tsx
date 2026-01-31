@@ -196,7 +196,7 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
               {task.blockedBy.map((blockerId: TaskId) => (
                 <li
                   key={blockerId}
-                  className="font-mono text-xs text-[var(--color-error)]"
+                  className="font-mono text-xs text-[var(--color-status-blocked)]"
                 >
                   {blockerId}
                 </li>
@@ -291,7 +291,7 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
           <button
             type="button"
             onClick={() => setShowDeleteDialog(true)}
-            className="w-full py-2 px-4 rounded font-medium text-sm bg-[var(--color-surface-primary)] text-[var(--color-error)] hover:bg-[var(--color-error)]/20 transition-colors"
+            className="w-full py-2 px-4 rounded font-medium text-sm bg-[var(--color-surface-primary)] text-[var(--color-status-blocked)] hover:bg-[var(--color-status-blocked)]/20 transition-colors"
           >
             Delete Task
           </button>
@@ -332,7 +332,7 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
             </button>
           </div>
           {completeTask.isError && (
-            <p className="text-sm text-[var(--color-error)] mt-2">
+            <p className="text-sm text-[var(--color-status-blocked)] mt-2">
               {completeTask.error.message}
             </p>
           )}
@@ -361,13 +361,13 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
               type="button"
               onClick={handleDelete}
               disabled={deleteTask.isPending}
-              className="flex-1 py-2 px-4 rounded text-sm bg-[var(--color-error)] text-white hover:bg-[var(--color-error)]/80 transition-colors disabled:opacity-50"
+              className="flex-1 py-2 px-4 rounded text-sm bg-[var(--color-status-blocked)] text-white hover:bg-[var(--color-status-blocked)]/80 transition-colors disabled:opacity-50"
             >
               {deleteTask.isPending ? "Deleting..." : "Delete"}
             </button>
           </div>
           {deleteTask.isError && (
-            <p className="text-sm text-[var(--color-error)] mt-2">
+            <p className="text-sm text-[var(--color-status-blocked)] mt-2">
               {deleteTask.error.message}
             </p>
           )}
@@ -382,12 +382,12 @@ function StatusBadge({ task }: { task: TaskWithContext }) {
   const isInProgress = task.startedAt !== null && !task.completed;
 
   const statusColor = task.completed
-    ? "var(--color-success)"
+    ? "var(--color-status-done)"
     : isBlocked
-      ? "var(--color-error)"
+      ? "var(--color-status-blocked)"
       : isInProgress
-        ? "var(--color-accent)"
-        : "var(--color-text-muted)";
+        ? "var(--color-status-active)"
+        : "var(--color-status-pending)";
 
   const statusLabel = task.completed
     ? "Completed"

@@ -2,7 +2,7 @@ use rusqlite::Connection;
 
 use crate::core::TaskService;
 use crate::db::task_repo;
-use crate::error::Result;
+use crate::error::{NotReadyReason, OsError, Result};
 use crate::id::TaskId;
 use crate::types::Task;
 use crate::vcs::backend::{VcsBackend, VcsError};
@@ -39,6 +39,19 @@ impl<'a> TaskWorkflowService<'a> {
 
     pub fn start(&self, id: &TaskId) -> Result<Task> {
         let task = self.task_service.get(id)?;
+
+        // Idempotent: already started with VCS state
+        if task.started_at.is_some() && task.bookmark.is_some() {
+            // Just checkout the existing bookmark
+            if let Some(ref bookmark) = task.bookmark {
+                self.vcs.checkout(bookmark)?;
+            }
+            return self.task_service.get(id);
+        }
+
+        // Validate: must be the next ready task in its subtree
+        self.validate_start_target(id, &task)?;
+
         let bookmark = task
             .bookmark
             .clone()
@@ -64,7 +77,104 @@ impl<'a> TaskWorkflowService<'a> {
             self.task_service.start(id)?;
         }
 
+        // 5. Bubble started_at to ancestors (but not VCS state)
+        self.bubble_start_to_ancestors(id)?;
+
         self.task_service.get(id)
+    }
+
+    /// Validate that a task can be started.
+    /// Returns error if task is not the next ready task in its subtree.
+    fn validate_start_target(&self, id: &TaskId, task: &Task) -> Result<()> {
+        // Check if blocked first (more specific error)
+        if self.task_service.is_effectively_blocked(task)? {
+            let blockers: Vec<TaskId> = task
+                .blocked_by
+                .iter()
+                .filter(|b| !task_repo::is_task_completed(self.conn, b).unwrap_or(true))
+                .cloned()
+                .collect();
+
+            let next_ready = self.task_service.next_ready(Some(id))?;
+
+            return Err(OsError::NotNextReady {
+                message: format!(
+                    "Cannot start '{}' - blocked by {}. {}",
+                    task.description,
+                    blockers
+                        .iter()
+                        .map(|b| b.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    next_ready
+                        .as_ref()
+                        .map(|nr| format!("Start '{}' instead.", nr))
+                        .unwrap_or_else(|| "No ready tasks in subtree.".to_string())
+                ),
+                requested: id.clone(),
+                next_ready,
+                reason: NotReadyReason::Blocked { blockers },
+            });
+        }
+
+        // Check if this is the next ready task in its subtree
+        let next_ready = self.task_service.next_ready(Some(id))?;
+
+        match next_ready {
+            Some(ref ready_id) if ready_id == id => Ok(()), // This is the next ready task
+            Some(ref ready_id) => {
+                // Has incomplete children - should start the ready child instead
+                let ready_task = self.task_service.get(ready_id)?;
+                Err(OsError::NotNextReady {
+                    message: format!(
+                        "Cannot start '{}' - has incomplete children. Start '{}' instead.",
+                        task.description, ready_task.description
+                    ),
+                    requested: id.clone(),
+                    next_ready: Some(ready_id.clone()),
+                    reason: NotReadyReason::HasIncompleteChildren,
+                })
+            }
+            None => {
+                // No ready tasks - might be all complete or all blocked
+                Err(OsError::NotNextReady {
+                    message: format!(
+                        "Cannot start '{}' - no ready tasks in subtree (all complete or blocked).",
+                        task.description
+                    ),
+                    requested: id.clone(),
+                    next_ready: None,
+                    reason: NotReadyReason::HasIncompleteChildren,
+                })
+            }
+        }
+    }
+
+    /// Bubble started_at to all ancestors that don't have it set.
+    /// Only sets started_at, not VCS bookmark/start_commit.
+    fn bubble_start_to_ancestors(&self, id: &TaskId) -> Result<()> {
+        let mut current_id = id.clone();
+
+        loop {
+            let current = task_repo::get_task(self.conn, &current_id)?
+                .ok_or_else(|| OsError::TaskNotFound(current_id.clone()))?;
+
+            let Some(parent_id) = current.parent_id else {
+                break;
+            };
+
+            let parent = task_repo::get_task(self.conn, &parent_id)?
+                .ok_or_else(|| OsError::TaskNotFound(parent_id.clone()))?;
+
+            // Only set started_at if not already set
+            if parent.started_at.is_none() {
+                self.task_service.start(&parent_id)?;
+            }
+
+            current_id = parent_id;
+        }
+
+        Ok(())
     }
 
     /// Start a task, following blockers to find startable work.
@@ -241,9 +351,7 @@ mod tests {
     use super::*;
     use crate::db::schema::init_schema;
     use crate::types::CreateTaskInput;
-    use crate::vcs::backend::{
-        CommitResult, DiffEntry, LogEntry, VcsResult, VcsStatus, VcsType,
-    };
+    use crate::vcs::backend::{CommitResult, DiffEntry, LogEntry, VcsResult, VcsStatus, VcsType};
 
     fn setup_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
@@ -871,5 +979,227 @@ mod tests {
         let milestone_learnings =
             crate::db::learning_repo::list_learnings(&conn, &milestone.id).unwrap();
         assert_eq!(milestone_learnings.len(), 1);
+    }
+
+    #[test]
+    fn test_start_rejects_parent_with_incomplete_children() {
+        let conn = setup_db();
+        let service = TaskWorkflowService::new(&conn, mock_vcs());
+        let svc = service.task_service();
+
+        // Create: milestone -> task -> subtask
+        let milestone = svc
+            .create(&CreateTaskInput {
+                description: "Milestone".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let task = svc
+            .create(&CreateTaskInput {
+                description: "Task".to_string(),
+                context: None,
+                parent_id: Some(milestone.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let subtask = svc
+            .create(&CreateTaskInput {
+                description: "Subtask".to_string(),
+                context: None,
+                parent_id: Some(task.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        // Starting milestone directly should fail
+        let result = service.start(&milestone.id);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            OsError::NotNextReady {
+                requested,
+                next_ready,
+                ..
+            } => {
+                assert_eq!(requested, milestone.id);
+                assert_eq!(next_ready, Some(subtask.id.clone()));
+            }
+            _ => panic!("Expected NotNextReady error, got {:?}", err),
+        }
+
+        // Starting task directly should also fail (has subtask)
+        let result = service.start(&task.id);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            OsError::NotNextReady {
+                requested,
+                next_ready,
+                ..
+            } => {
+                assert_eq!(requested, task.id);
+                assert_eq!(next_ready, Some(subtask.id.clone()));
+            }
+            _ => panic!("Expected NotNextReady error, got {:?}", err),
+        }
+
+        // Starting subtask should succeed
+        let result = service.start(&subtask.id);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_start_rejects_blocked_task() {
+        let conn = setup_db();
+        let service = TaskWorkflowService::new(&conn, mock_vcs());
+        let svc = service.task_service();
+
+        // Create: blocker, blocked_task (blocked by blocker)
+        let blocker = svc
+            .create(&CreateTaskInput {
+                description: "Blocker".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let blocked_task = svc
+            .create(&CreateTaskInput {
+                description: "Blocked task".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![blocker.id.clone()],
+            })
+            .unwrap();
+
+        // Starting blocked_task should fail with blocked error
+        let result = service.start(&blocked_task.id);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            OsError::NotNextReady { reason, .. } => {
+                assert!(matches!(reason, NotReadyReason::Blocked { .. }));
+            }
+            _ => panic!(
+                "Expected NotNextReady error with Blocked reason, got {:?}",
+                err
+            ),
+        }
+    }
+
+    #[test]
+    fn test_start_bubbles_started_at_to_ancestors() {
+        let conn = setup_db();
+        let service = TaskWorkflowService::new(&conn, mock_vcs());
+        let svc = service.task_service();
+
+        // Create: milestone -> task -> subtask
+        let milestone = svc
+            .create(&CreateTaskInput {
+                description: "Milestone".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let task = svc
+            .create(&CreateTaskInput {
+                description: "Task".to_string(),
+                context: None,
+                parent_id: Some(milestone.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let subtask = svc
+            .create(&CreateTaskInput {
+                description: "Subtask".to_string(),
+                context: None,
+                parent_id: Some(task.id.clone()),
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        // Verify ancestors have no started_at initially
+        assert!(svc.get(&milestone.id).unwrap().started_at.is_none());
+        assert!(svc.get(&task.id).unwrap().started_at.is_none());
+        assert!(svc.get(&subtask.id).unwrap().started_at.is_none());
+
+        // Start the subtask
+        let started = service.start(&subtask.id).unwrap();
+        assert!(started.started_at.is_some());
+        assert!(started.bookmark.is_some()); // VCS state only on leaf
+
+        // Ancestors should now have started_at but NOT VCS state
+        let task_after = svc.get(&task.id).unwrap();
+        assert!(task_after.started_at.is_some());
+        assert!(task_after.bookmark.is_none()); // No VCS bookmark on parent
+
+        let milestone_after = svc.get(&milestone.id).unwrap();
+        assert!(milestone_after.started_at.is_some());
+        assert!(milestone_after.bookmark.is_none()); // No VCS bookmark on grandparent
+    }
+
+    #[test]
+    fn test_start_is_idempotent() {
+        let conn = setup_db();
+        let service = TaskWorkflowService::new(&conn, mock_vcs());
+        let svc = service.task_service();
+
+        let task = svc
+            .create(&CreateTaskInput {
+                description: "Task".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        // Start task
+        let first_start = service.start(&task.id).unwrap();
+        assert!(first_start.started_at.is_some());
+        let first_started_at = first_start.started_at.clone();
+
+        // Start again - should be idempotent
+        let second_start = service.start(&task.id).unwrap();
+        assert_eq!(second_start.started_at, first_started_at);
+    }
+
+    #[test]
+    fn test_start_allows_leaf_without_children() {
+        let conn = setup_db();
+        let service = TaskWorkflowService::new(&conn, mock_vcs());
+        let svc = service.task_service();
+
+        // Create a milestone with no children (it's a leaf)
+        let milestone = svc
+            .create(&CreateTaskInput {
+                description: "Leaf milestone".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        // Should be startable since it's a leaf
+        let result = service.start(&milestone.id);
+        assert!(result.is_ok());
+        assert!(result.unwrap().started_at.is_some());
     }
 }

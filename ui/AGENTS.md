@@ -63,17 +63,38 @@ npm run test:ui:watch    # Continuous testing
 
 ## THEME
 
-Tailwind v4 CSS-first config in `global.css`:
+Tailwind v4 CSS-first config in `global.css`. Industrial aesthetic, dark mode only, OKLCH colors.
 
+### Core Palette (OKLCH)
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--color-bg-primary` | `#0a0a0a` | Main background |
-| `--color-bg-secondary` | `#1a1a1a` | Panel backgrounds |
-| `--color-surface-primary` | `#1f1f1f` | Cards, inputs |
-| `--color-text-primary` | `#e5e5e5` | Main text |
-| `--color-text-muted` | `#737373` | Secondary text |
-| `--color-accent` | `#f97316` | Orange accent |
-| `--color-border` | `#333333` | Borders |
+| `--color-bg-primary` | `oklch(0.13 0 0)` | Main background |
+| `--color-bg-secondary` | `oklch(0.16 0 0)` | Panel backgrounds |
+| `--color-surface-primary` | `oklch(0.18 0 0)` | Cards, inputs |
+| `--color-surface-secondary` | `oklch(0.22 0 0)` | Elevated surfaces |
+| `--color-text-primary` | `oklch(0.9 0 0)` | Main text |
+| `--color-text-muted` | `oklch(0.55 0 0)` | Secondary text |
+| `--color-text-dim` | `oklch(0.4 0 0)` | Tertiary text |
+| `--color-accent` | `oklch(0.7 0.18 45)` | Orange accent |
+| `--color-accent-muted` | `oklch(0.5 0.12 45)` | Muted accent |
+| `--color-accent-subtle` | `oklch(0.3 0.08 45)` | Subtle accent bg |
+| `--color-border` | `oklch(0.28 0 0)` | Borders |
+| `--color-border-focus` | `oklch(0.7 0.18 45)` | Focus ring (accent) |
+
+### Status Colors
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--color-status-pending` | `oklch(0.55 0 0)` | Neutral gray |
+| `--color-status-active` | `oklch(0.7 0.18 45)` | Orange (pulsing) |
+| `--color-status-blocked` | `oklch(0.65 0.2 25)` | Red-orange |
+| `--color-status-done` | `oklch(0.65 0.12 145)` | Teal-green |
+
+### Typography (fully monospace)
+| Token | Value |
+|-------|-------|
+| `--font-display` | JetBrains Mono, SF Mono, monospace |
+| `--font-body` | JetBrains Mono, SF Mono, monospace |
+| `--font-mono` | JetBrains Mono, SF Mono, monospace |
 
 ## ENVIRONMENT
 

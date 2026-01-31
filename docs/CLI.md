@@ -138,12 +138,13 @@ os task start TASK_ID
 - Follows blockers to find startable work
 - Cascades down to deepest incomplete leaf
 - Creates VCS bookmark for started task
+- Records start commit (`startCommit` field)
 - Returns the task that was actually started
 
 **Algorithm:**
 1. If requested task is blocked, follow blockers to find startable work
 2. Cascade down through hierarchy to deepest incomplete leaf
-3. Start that leaf task (set `started_at`, create VCS bookmark)
+3. Start that leaf task (set `started_at`, create VCS bookmark, record start commit)
 4. Error only if no startable task found after exhausting all paths
 
 **Examples:**

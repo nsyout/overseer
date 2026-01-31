@@ -1,5 +1,7 @@
 # overseer: Design Plan
 
+> **⚠️ HISTORICAL DOCUMENT**: This is the original design plan from project inception. Some API signatures and implementation details may be outdated. For current API reference, see `docs/MCP.md` and `docs/CLI.md`.
+
 A codemode MCP server for agent task management, backed by SQLite with native VCS integration (jj-lib + gix). JJ-first.
 
 ## Architecture

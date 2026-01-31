@@ -3,6 +3,15 @@ use thiserror::Error;
 use crate::id::{LearningId, TaskId};
 use crate::vcs::VcsError;
 
+/// Reason why a task cannot be started
+#[derive(Debug, Clone)]
+pub enum NotReadyReason {
+    /// Task has incomplete children - must start the next ready child
+    HasIncompleteChildren,
+    /// Task is blocked by other tasks
+    Blocked { blockers: Vec<TaskId> },
+}
+
 #[derive(Error, Debug)]
 pub enum OsError {
     #[error("Database error: {0}")]
@@ -36,6 +45,15 @@ pub enum OsError {
     /// No startable task found after exhausting all paths
     #[error("{message}")]
     NoStartableTask { message: String, requested: TaskId },
+
+    /// Task cannot be started - not the next ready task
+    #[error("{message}")]
+    NotNextReady {
+        message: String,
+        requested: TaskId,
+        next_ready: Option<TaskId>,
+        reason: NotReadyReason,
+    },
 
     /// Invalid blocker relation (self, ancestor, or descendant)
     #[error("{message}")]

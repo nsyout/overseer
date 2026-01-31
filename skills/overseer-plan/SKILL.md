@@ -77,7 +77,7 @@ Every milestone must:
 ```javascript
 await tasks.get("<id>");                    // TaskWithContext (full context + learnings)
 await tasks.list({ parentId: "<id>" });     // Task[] (children without context chain)
-await tasks.start("<id>");                  // Task (VCS required - creates bookmark)
+await tasks.start("<id>");                  // Task (VCS required - creates bookmark, records start commit)
 await tasks.complete("<id>", { result: "...", learnings: [...] });  // Task (VCS required - commits, bubbles learnings)
 ```
 

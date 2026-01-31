@@ -411,8 +411,8 @@ console.log("Task:", task.context.own);
 // Check inherited learnings
 console.log("Learnings:", task.learnings.parent);
 
-// Start work
-await tasks.start(task.task.id);
+// Start work (creates bookmark, records start commit)
+await tasks.start(task.id);
 return task;
 ```
 

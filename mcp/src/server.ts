@@ -92,7 +92,7 @@ const subtask = await tasks.create({
   priority: 2
 });
 
-// Start working on task (VCS required - creates bookmark)
+// Start working on task (VCS required - creates bookmark, records start commit)
 await tasks.start(subtask.id);
 
 // Get task with full context
