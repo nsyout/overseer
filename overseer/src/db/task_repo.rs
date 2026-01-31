@@ -259,6 +259,16 @@ pub fn remove_blocker(conn: &Connection, task_id: &TaskId, blocker_id: &TaskId) 
     Ok(())
 }
 
+/// Remove completed task from all blocking relationships.
+/// Called when a task is completed to unblock dependent tasks.
+pub fn remove_blocker_from_all(conn: &Connection, blocker_id: &TaskId) -> Result<usize> {
+    let count = conn.execute(
+        "DELETE FROM task_blockers WHERE blocker_id = ?1",
+        params![blocker_id],
+    )?;
+    Ok(count)
+}
+
 pub fn task_exists(conn: &Connection, id: &TaskId) -> Result<bool> {
     let count: i32 = conn.query_row(
         "SELECT COUNT(*) FROM tasks WHERE id = ?1",

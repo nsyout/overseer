@@ -5,8 +5,8 @@ export type { AppType } from "./app.js";
 
 const PORT =
   process.env.PORT === undefined
-    ? 3001
-    : Number.parseInt(process.env.PORT, 10) || 3001;
+    ? 6969
+    : Number.parseInt(process.env.PORT, 10) || 6969;
 
 serve(
   {
@@ -14,6 +14,6 @@ serve(
     port: PORT,
   },
   (info) => {
-    console.log(`API server running on http://localhost:${info.port}`);
+    console.log(`API server listening on http://localhost:${info.port}`);
   }
 );

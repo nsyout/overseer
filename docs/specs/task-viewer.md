@@ -1,8 +1,27 @@
 # Overseer Task Viewer — Feature Spec
 
-**Status:** Approved  
-**Effort:** L-XL (3-5 days)  
-**Created:** 2026-01-28
+**Status:** In Progress  
+**Effort:** M-L (2-3 days remaining)  
+**Created:** 2026-01-28  
+**Updated:** 2026-01-31
+
+---
+
+## Implementation Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| CLI args (`--port`, `--no-open`) | Done | `overseer/src/commands/ui.rs` |
+| CLI spawn/detection | Done | PORT env var, "listening on" detection |
+| API skeleton | Done | `/health` only |
+| API routes | Not started | — |
+| CLI bridge (`cli.ts`) | Not started | — |
+| Frontend | Not started | — |
+
+**Completed fixes:**
+- ✅ npm script: `dev:api` → `dev`
+- ✅ Ready detection: CLI detects "listening on" (Hono output)
+- ✅ Port: API defaults to 6969
 
 ---
 
@@ -23,7 +42,7 @@ Agents using Overseer via MCP have no visual way to inspect the task store state
 | VCS operations | Through existing workflow service (complete only) |
 | Browser support | Modern (Chrome/Firefox/Safari) |
 | Data freshness | Polling @ 5 seconds |
-| Static file serving | Filesystem (`ui/web/dist/`) |
+| Static file serving | Filesystem (`ui/dist/`) |
 
 ## Non-Goals (v1)
 
@@ -42,11 +61,13 @@ Agents using Overseer via MCP have no visual way to inspect the task store state
 |-------|--------|-----------|
 | CLI command | Rust (`os ui`) | Consistent with existing CLI |
 | API server | Hono | Type-safe RPC client via `hc<AppType>()` |
-| Frontend framework | Astro (static) | Fast, minimal JS, React islands |
+| Frontend build | Vite | Fast HMR, simpler than Astro for SPA |
 | UI components | React + shadcn/ui | Custom nodes, dark theme |
 | Graph visualization | @xyflow/react + dagre | Interactive, custom nodes, auto-layout |
 | Data fetching | TanStack Query | Stable, simple polling |
 | Styling | Tailwind CSS v4 | CSS-first config, OKLCH colors |
+
+**Architecture Decision:** Single-package Hono + Vite SPA (simplified from original Astro spec). Astro's partial hydration benefits don't justify complexity for a local-only dashboard with heavy React interactivity.
 
 ---
 
@@ -57,29 +78,30 @@ Agents using Overseer via MCP have no visual way to inspect the task store state
 |                    os ui (Rust CLI)                         |
 |  - Spawns Hono server on :6969                              |
 |  - Opens browser                                            |
-|  - Serves Astro static build + API                          |
+|  - Waits for "listening on" in stdout                       |
 +-------------------------------------------------------------+
                               |
-         +--------------------+--------------------+
-         v                                         v
-+---------------------+                 +---------------------+
-|   Astro Frontend    |                 |    Hono API         |
-|   (Static Build)    |  <-- fetch -->  |    (/api/*)         |
-|                     |                 |                     |
-| - Task list view    |                 | GET  /api/tasks     |
-| - Dependency graph  |                 | GET  /api/tasks/:id |
-| - Detail panel      |                 | PUT  /api/tasks/:id |
-| - Edit forms        |                 | DEL  /api/tasks/:id |
-|                     |                 | POST /api/tasks/:id |
-| React + xyflow      |                 |      /complete      |
-| TanStack Query      |                 | CRUD /api/learnings |
-+---------------------+                 +---------------------+
-                                                  |
-                                                  v
-                                        +---------------------+
-                                        |   os CLI (spawn)    |
-                                        |   --json mode       |
-                                        +---------------------+
+                              v
++-------------------------------------------------------------+
+|                    Hono Server (:6969)                      |
+|                                                             |
+|  +-------------------+  +--------------------------------+  |
+|  | Static Files      |  | API Routes (/api/*)            |  |
+|  | (Vite dist/)      |  |                                |  |
+|  |                   |  | GET  /api/tasks                |  |
+|  | - index.html      |  | GET  /api/tasks/:id            |  |
+|  | - assets/*.js     |  | PUT  /api/tasks/:id            |  |
+|  | - assets/*.css    |  | DEL  /api/tasks/:id            |  |
+|  +-------------------+  | POST /api/tasks/:id/complete   |  |
+|                         | CRUD /api/learnings            |  |
+|                         +--------------------------------+  |
+|                                        |                    |
++----------------------------------------|--------------------+
+                                         v
+                               +---------------------+
+                               |   os CLI (spawn)    |
+                               |   --json mode       |
+                               +---------------------+
 ```
 
 ---
@@ -89,38 +111,36 @@ Agents using Overseer via MCP have no visual way to inspect the task store state
 ```
 overseer/
 ├── overseer/                    # Existing Rust CLI
-│   └── src/commands/ui.rs       # NEW: os ui command
+│   └── src/commands/ui.rs       # DONE: os ui command
 │
-├── ui/                          # NEW: UI packages
-│   ├── server/                  # Hono API server
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   └── src/
-│   │       ├── index.ts         # Entry, serve static + API
-│   │       ├── routes/
-│   │       │   ├── tasks.ts
-│   │       │   └── learnings.ts
-│   │       ├── cli.ts           # Spawn os --json
-│   │       └── types.ts         # Export AppType
-│   │
-│   ├── web/                     # Astro frontend
-│   │   ├── package.json
-│   │   ├── astro.config.mjs
-│   │   ├── tailwind.config.js
-│   │   └── src/
-│   │       ├── layouts/
-│   │       ├── pages/
-│   │       ├── components/
-│   │       ├── lib/
-│   │       └── styles/
-│   │
-│   └── shared/                  # Shared types
-│       ├── package.json
-│       └── src/
-│           └── types.ts
-│
-├── package.json                 # Root workspace
-└── pnpm-workspace.yaml          # Add ui/*
+└── ui/                          # Single package (Hono + Vite)
+    ├── package.json             # DONE: @overseer/ui
+    ├── tsconfig.json            # DONE
+    ├── vite.config.ts           # TODO
+    └── src/
+        ├── api/                 # Hono API server
+        │   ├── app.ts           # DONE: route definitions, AppType export
+        │   ├── index.ts         # DONE: serve() entry
+        │   ├── cli.ts           # TODO: spawn os --json
+        │   └── routes/          # TODO
+        │       ├── tasks.ts
+        │       └── learnings.ts
+        │
+        ├── client/              # React SPA (TODO)
+        │   ├── main.tsx         # React root
+        │   ├── App.tsx          # Layout + routing
+        │   ├── components/
+        │   │   ├── TaskList.tsx
+        │   │   ├── TaskGraph.tsx
+        │   │   └── TaskDetail.tsx
+        │   ├── lib/
+        │   │   ├── api.ts       # hc<AppType> client
+        │   │   └── queries.ts   # TanStack Query hooks
+        │   └── styles/
+        │       └── global.css
+        │
+        ├── client.ts            # DONE: hc<AppType> factory
+        └── types.ts             # TODO: shared types
 ```
 
 ---
@@ -157,7 +177,7 @@ GET    /api/health             # Health check
 ## API Types
 
 ```typescript
-// === Shared Types (ui/shared/types.ts) ===
+// === Shared Types (ui/src/types.ts) ===
 
 interface Task {
   id: string                    // "task_01ABC..."
@@ -247,7 +267,8 @@ type DeleteLearningResponse = { deleted: true }
 ### D1: CLI `os ui` Command
 
 **Effort:** M  
-**Files:** `overseer/src/commands/ui.rs`, `overseer/src/main.rs`
+**Files:** `overseer/src/commands/ui.rs`, `overseer/src/main.rs`  
+**Status:** 70% - args/spawn done, ready detection broken
 
 **Behavior:**
 ```bash
@@ -257,13 +278,23 @@ os ui --port 8080  # Custom port
 ```
 
 **Implementation:**
-1. Spawn Hono server (Node.js) serving `ui/web/dist/` and API routes
-2. Open browser via `open` crate
-3. Block until Ctrl+C
+1. Spawn Hono server via `npm run dev` with `PORT` env var
+2. Wait for stdout containing `listening on` or `http://localhost:<port>`
+3. Open browser via `open` crate
+4. Block until Ctrl+C
+
+**Fixes needed:**
+- `ui.rs:82`: Pass port as `PORT=<port>` env var, not `--port` arg
+- `ui.rs:107`: Change detection from `"Local:"` to `"listening on"` or `"http://localhost"`
+- `ui/package.json`: Rename `dev:api` to `dev`
 
 **Acceptance:**
-- [ ] `os ui` opens browser to `http://localhost:6969`
-- [ ] Server serves static files and API routes
+- [x] CLI args: `--port`, `--no-open`
+- [x] `find_ui_dir()` locates package
+- [x] Browser opens via `open::that()`
+- [ ] npm script `dev` exists
+- [ ] PORT env var passed correctly
+- [ ] Server ready detection works
 - [ ] Graceful shutdown on SIGINT
 
 ---
@@ -271,46 +302,67 @@ os ui --port 8080  # Custom port
 ### D2: Hono API Server
 
 **Effort:** M  
-**Files:** `ui/server/`
+**Files:** `ui/src/api/`  
+**Status:** 10% - skeleton only
 
 **Implementation:**
 - Each route spawns `os --json <command>` and returns parsed JSON
 - Type-safe with Zod validators
 - Export `AppType` for client generation
+- Serve Vite dist/ as static files in production
+
+**Existing:**
+- `app.ts`: Hono app with `/health` route, exports `AppType`
+- `index.ts`: `serve()` on `PORT` env (default 3001 -> **change to 6969**)
+- `../client.ts`: `hc<AppType>()` factory
+
+**TODO:**
+- `cli.ts`: Spawn `os --json` helper
+- `routes/tasks.ts`: GET/PUT/DELETE `/api/tasks/*`
+- `routes/learnings.ts`: CRUD `/api/learnings/*`
+- Static file serving for production
 
 **Acceptance:**
+- [x] Hono app exports `AppType`
+- [x] `hc<AppType>()` client factory exists
+- [ ] Default port is 6969
 - [ ] All routes return proper JSON
 - [ ] Errors return `{ error: string }` with appropriate status codes
-- [ ] `hc<AppType>()` client compiles with full type inference
+- [ ] CLI spawn helper works
 
 ---
 
-### D3: Astro Frontend Shell
+### D3: Vite + React Frontend Shell
 
 **Effort:** M  
-**Files:** `ui/web/`
+**Files:** `ui/src/client/`  
+**Status:** Not started
 
 **Structure:**
 ```
-ui/web/src/
-├── layouts/
-│   └── Layout.astro       # Dark theme, typography
-├── pages/
-│   └── index.astro        # Main app shell
+ui/src/client/
+├── main.tsx           # React root, QueryClientProvider
+├── App.tsx            # Layout: sidebar + graph + detail
 ├── components/
-│   ├── TaskList.tsx       # Sidebar list
-│   ├── TaskGraph.tsx      # xyflow graph
-│   ├── TaskDetail.tsx     # Detail panel
+│   ├── TaskList.tsx   # Sidebar list
+│   ├── TaskGraph.tsx  # xyflow graph
+│   ├── TaskDetail.tsx # Detail panel
 │   └── ...
 ├── lib/
-│   ├── api.ts             # hc<AppType> client
-│   └── queries.ts         # TanStack Query hooks
+│   ├── api.ts         # hc<AppType> client
+│   └── queries.ts     # TanStack Query hooks
 └── styles/
-    └── global.css         # Tailwind + theme
+    └── global.css     # Tailwind + theme
 ```
 
+**Vite Config:**
+- Dev: Proxy `/api/*` to Hono server
+- Build: Output to `dist/` for Hono to serve
+
 **Acceptance:**
-- [ ] Builds to static files
+- [ ] `vite.config.ts` exists with proxy config
+- [ ] `npm run dev` starts both Vite + Hono
+- [ ] Builds to static files (`dist/`)
 - [ ] Dark theme matching inspiration images
 - [ ] Responsive (but desktop-first)
 
@@ -395,7 +447,7 @@ ui/web/src/
 ### D7: Visual Theme
 
 **Effort:** M  
-**Files:** `ui/web/src/styles/`, tailwind config
+**Files:** `ui/src/client/styles/`, `ui/tailwind.config.ts`
 
 **Aesthetic:**
 - **Background:** Deep charcoal (`#0a0a0a` - `#1a1a1a`)
@@ -421,20 +473,25 @@ ui/web/src/
 ## Dependency Order
 
 ```
-D1 (CLI) -----------------------------------------+
-                                                  |
-D2 (API) ------+----------------------------------+--> Integration
-               |                                  |
-D3 (Shell) ----+--> D4 (List) -----+              |
-               |                   |              |
-               |    D5 (Graph) ----+--> D6 (Panel)|
-               |                   |              |
-               +--> D7 (Theme) ----+              |
-                                                  |
-                         All <--------------------+
+Phase 1: Fix CLI/API sync
+  D1 fixes (npm script, port, detection)
+  D2 port fix (default 6969)
+       |
+       v
+Phase 2: API routes
+  D2 (CLI bridge + routes)
+       |
+       v
+Phase 3: Frontend
+  D7 (Theme) --> D3 (Shell) --> D4 (List) --+
+                                            +--> D6 (Panel)
+                    D5 (Graph) -------------+
+       |
+       v
+Integration test
 ```
 
-**Critical path:** D2 (API) -> D3 (Shell) -> D5 (Graph) -> Integration
+**Critical path:** D1/D2 fixes -> D2 routes -> D3 shell -> D5 graph
 
 ---
 
@@ -470,6 +527,8 @@ Hono provides type-safe client generation via `hc<AppType>()`:
 - Client gets full autocomplete for routes, params, responses
 - Use `InferResponseType` / `InferRequestType` for extracting types
 
+**Status:** Implemented in `ui/src/client.ts`
+
 ### TanStack Query vs TanStack DB
 
 **Decision:** Use TanStack Query (not TanStack DB)
@@ -489,10 +548,19 @@ Hono provides type-safe client generation via `hc<AppType>()`:
 - Dagre integration well-documented
 - Used by Supabase, Turborepo, Microsoft AutoGen
 
-### Astro + Hono Architecture
+### Vite + Hono Architecture (Updated 2026-01-31)
 
-**Decision:** Separate servers during dev, combined for production
+**Decision:** Single-package Vite SPA + Hono API (simplified from Astro)
 
-- Dev: Astro on :4321, Hono on :6969, Vite proxy
-- Prod: Hono serves Astro's `dist/` as static files
-- Astro `output: 'static'` - no SSR needed
+**Rationale:**
+- Astro's partial hydration doesn't help when entire page is React
+- Single package simpler than workspace with 3 packages
+- Local-only app doesn't need SSR/SSG benefits
+
+**Dev mode:**
+- `npm run dev` starts Hono on :6969 + Vite HMR
+- Vite proxies `/api/*` to Hono
+
+**Production:**
+- Vite builds to `dist/`
+- Hono serves `dist/` as static + API routes

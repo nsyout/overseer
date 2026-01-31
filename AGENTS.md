@@ -53,7 +53,11 @@ overseer/
 │   ├── overseer/            # Task management skill
 │   └── overseer-plan/       # Plan-to-task conversion skill
 │
-├── ui/                      # Hono API server (experimental)
+├── ui/                      # Task Viewer webapp (Hono + Vite + React)
+│   └── src/
+│       ├── api/             # Hono API server
+│       ├── client/          # React SPA
+│       └── types.ts         # Shared types
 │
 └── docs/                    # Reference documentation
 ```
@@ -70,6 +74,10 @@ overseer/
 | VCS operations | `overseer/src/vcs/` | jj.rs (primary), git.rs (fallback) |
 | Error types | `overseer/src/error.rs` | OsError enum |
 | Types/IDs | `overseer/src/types.rs`, `overseer/src/id.rs` | Domain types, ULID |
+| UI API routes | `ui/src/api/routes/` | Hono route handlers |
+| UI components | `ui/src/client/components/` | React components |
+| UI queries | `ui/src/client/lib/queries.ts` | TanStack Query hooks |
+| UI theme | `ui/src/client/styles/global.css` | Tailwind v4 CSS tokens |
 
 ## KEY DECISIONS
 
@@ -107,19 +115,6 @@ Types must stay in sync between `overseer/src/types.rs` and `mcp/src/types.ts`:
 - Never bypass CASCADE delete invariant
 - Never use depth limit for cycle detection (use DFS)
 
-## COMMANDS
-
-```bash
-# Rust CLI
-cd overseer && cargo build --release    # Build CLI
-cd overseer && cargo test               # Run tests
-
-# Node MCP
-cd mcp && npm install             # Install deps
-cd mcp && npm run build           # Compile TS
-cd mcp && npm test                # Run tests (node --test)
-```
-
 ## DESIGN INVARIANTS
 
 1. Cycle detection via DFS (not depth limit)
@@ -139,6 +134,23 @@ Agents write JS -> server executes -> only results return.
 - Why: LLMs handle TypeScript APIs better than raw tool calls
 - Key: `executor.ts` (VM sandbox), `server.ts` (tool registration)
 
+## COMMANDS
+
+```bash
+# Rust CLI
+cd overseer && cargo build --release    # Build CLI
+cd overseer && cargo test               # Run tests
+
+# Node MCP
+cd mcp && npm install             # Install deps
+cd mcp && npm run build           # Compile TS
+cd mcp && npm test                # Run tests (node --test)
+
+# UI
+cd ui && npm run dev              # Start Hono API + Vite HMR
+cd ui && npm run test:ui          # Run UI tests (agent-browser)
+```
+
 ## DOCS
 
 | Document | Purpose |
@@ -149,3 +161,5 @@ Agents write JS -> server executes -> only results return.
 | `docs/TASKS.md` | Task system design |
 | `docs/task-orchestrator-plan.md` | Original design spec |
 | `docs/codemode-*.md` | Codemode pattern research |
+| `ui/docs/UI-TESTING.md` | UI testing with agent-browser |
+| `ui/AGENTS.md` | UI package knowledge base |

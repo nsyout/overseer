@@ -79,7 +79,8 @@ fn spawn_server(ui_dir: &PathBuf, port: u16) -> Result<Child> {
 
     // Spawn npm run dev with PORT env var
     let child = Command::new("npm")
-        .args(["run", "dev", "--", "--port", &port.to_string()])
+        .args(["run", "dev"])
+        .env("PORT", port.to_string())
         .current_dir(ui_dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -103,8 +104,8 @@ fn wait_for_ready(child: &mut Child, port: u16) -> Result<String> {
         // Print server output
         eprintln!("{line}");
 
-        // Astro outputs "Local: http://localhost:PORT/" when ready
-        if line.contains("Local:") && line.contains(&port.to_string()) {
+        // Hono outputs "listening on http://localhost:PORT" when ready
+        if line.contains("listening on") && line.contains(&port.to_string()) {
             return Ok(url);
         }
     }

@@ -153,9 +153,10 @@ export function createServer(): Server {
 
     try {
       const result = await execute(code);
-      // JSON.stringify(undefined) returns undefined, not a string
-      // MCP requires text to be a string, so handle undefined explicitly
-      const text = result === undefined ? "undefined" : JSON.stringify(result, null, 2);
+      // JSON.stringify can return undefined for: undefined, functions, symbols
+      // MCP requires text to always be a string
+      const serialized = result === undefined ? undefined : JSON.stringify(result, null, 2);
+      const text = serialized ?? "undefined";
       return {
         content: [
           {

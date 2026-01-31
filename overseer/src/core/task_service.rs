@@ -190,6 +190,9 @@ impl<'a> TaskService<'a> {
 
         let mut task = task_repo::complete_task(self.conn, id, result, commit_sha.as_deref())?;
 
+        // Remove this task from all blocking relationships (unblock dependents)
+        task_repo::remove_blocker_from_all(self.conn, id)?;
+
         // Bubble all learnings (including newly added) to immediate parent
         if let Some(ref parent_id) = task.parent_id {
             learning_repo::bubble_learnings(self.conn, id, parent_id)?;
@@ -1403,5 +1406,54 @@ mod tests {
             },
         );
         assert!(matches!(result, Err(OsError::MaxDepthExceeded)));
+    }
+
+    #[test]
+    fn test_complete_removes_from_blockers() {
+        let conn = setup_db();
+        let service = TaskService::new(&conn);
+
+        let blocker = service
+            .create(&CreateTaskInput {
+                description: "Blocker".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        let task_b = service
+            .create(&CreateTaskInput {
+                description: "Task B".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![blocker.id.clone()],
+            })
+            .unwrap();
+
+        let task_c = service
+            .create(&CreateTaskInput {
+                description: "Task C".to_string(),
+                context: None,
+                parent_id: None,
+                priority: Some(5),
+                blocked_by: vec![blocker.id.clone()],
+            })
+            .unwrap();
+
+        // Verify initial state
+        assert_eq!(service.get(&task_b.id).unwrap().blocked_by.len(), 1);
+        assert_eq!(service.get(&task_c.id).unwrap().blocked_by.len(), 1);
+        assert_eq!(service.get(&blocker.id).unwrap().blocks.len(), 2);
+
+        // Complete blocker
+        service.complete(&blocker.id, None).unwrap();
+
+        // Verify cleanup
+        assert!(service.get(&task_b.id).unwrap().blocked_by.is_empty());
+        assert!(service.get(&task_c.id).unwrap().blocked_by.is_empty());
+        assert!(service.get(&blocker.id).unwrap().blocks.is_empty());
     }
 }
