@@ -292,16 +292,16 @@ const done = await tasks.list({ completed: true });
 // Get pending children of milestone
 const milestone = await tasks.get(milestoneId);
 const pending = await tasks.list({
-  parentId: milestone.task.id,
+  parentId: milestone.id,
   completed: false
 });
 
 // Calculate progress
-const total = await tasks.list({ parentId: milestone.task.id });
+const total = await tasks.list({ parentId: milestone.id });
 const progress = (done.length / total.length) * 100;
 
 return {
-  milestone: milestone.task.description,
+  milestone: milestone.description,
   progress: `${progress.toFixed(0)}%`,
   pending: pending.length,
   done: done.length

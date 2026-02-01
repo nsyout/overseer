@@ -10,6 +10,8 @@ pub enum NotReadyReason {
     HasIncompleteChildren,
     /// Task is blocked by other tasks
     Blocked { blockers: Vec<TaskId> },
+    /// No ready tasks in subtree (all complete or blocked)
+    NoReadyTasksInSubtree,
 }
 
 #[derive(Error, Debug)]

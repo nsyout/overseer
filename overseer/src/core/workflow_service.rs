@@ -95,7 +95,8 @@ impl<'a> TaskWorkflowService<'a> {
                 .cloned()
                 .collect();
 
-            let next_ready = self.task_service.next_ready(Some(id))?;
+            // Search globally for a ready task (not within blocked subtree)
+            let next_ready = self.task_service.next_ready(None)?;
 
             return Err(OsError::NotNextReady {
                 message: format!(
@@ -109,7 +110,7 @@ impl<'a> TaskWorkflowService<'a> {
                     next_ready
                         .as_ref()
                         .map(|nr| format!("Start '{}' instead.", nr))
-                        .unwrap_or_else(|| "No ready tasks in subtree.".to_string())
+                        .unwrap_or_else(|| "No ready tasks available.".to_string())
                 ),
                 requested: id.clone(),
                 next_ready,
@@ -144,7 +145,7 @@ impl<'a> TaskWorkflowService<'a> {
                     ),
                     requested: id.clone(),
                     next_ready: None,
-                    reason: NotReadyReason::HasIncompleteChildren,
+                    reason: NotReadyReason::NoReadyTasksInSubtree,
                 })
             }
         }

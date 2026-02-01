@@ -25,7 +25,8 @@
     "@xyflow/react": "^12.10.0",
     "hono": "^4.11.5",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tailwind-variants": "^3.2.2"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.6",
