@@ -17,7 +17,7 @@ import {
   type ReactNode,
 } from "react";
 
-export type ShortcutScope = "global" | "list" | "graph" | "detail";
+export type ShortcutScope = "global" | "list" | "graph" | "kanban" | "detail";
 
 /**
  * A scope claim represents a component's ownership of a keyboard scope.

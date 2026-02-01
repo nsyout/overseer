@@ -17,10 +17,11 @@ const SCOPE_LABELS: Record<ShortcutScope, string> = {
   global: "Global",
   list: "Task List",
   graph: "Graph View",
+  kanban: "Kanban View",
   detail: "Task Detail",
 };
 
-const SCOPE_ORDER: ShortcutScope[] = ["global", "list", "graph", "detail"];
+const SCOPE_ORDER: ShortcutScope[] = ["global", "list", "graph", "kanban", "detail"];
 
 export function KeyboardHelp(): React.ReactElement | null {
   const { helpOpen, setHelpOpen, getShortcuts, activeScope } =
