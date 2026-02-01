@@ -3,6 +3,8 @@ import { useTasks, useTask } from "./lib/queries.js";
 import { TaskList } from "./components/TaskList.js";
 import { TaskGraph } from "./components/TaskGraph.js";
 import { TaskDetail } from "./components/TaskDetail.js";
+import { KeyboardProvider } from "./lib/keyboard.js";
+import { KeyboardHelp } from "./components/KeyboardHelp.js";
 import type { TaskId } from "../types.js";
 
 /**
@@ -22,7 +24,9 @@ export function App() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-[var(--color-bg-primary)]">
+    <KeyboardProvider>
+      <KeyboardHelp />
+      <div className="flex h-screen bg-[var(--color-bg-primary)]">
       {/* Left Sidebar - Task List */}
       <aside className="w-80 flex-shrink-0 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden flex flex-col">
         <header className="p-4 border-b border-[var(--color-border)]">
@@ -78,6 +82,7 @@ export function App() {
           </div>
         )}
       </aside>
-    </div>
+      </div>
+    </KeyboardProvider>
   );
 }
