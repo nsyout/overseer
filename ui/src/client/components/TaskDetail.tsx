@@ -38,7 +38,8 @@ const field = tv({
 
 const { container, label, value } = field();
 
-// Status badge variant
+// Status badge variant - intentionally differs from Badge component:
+// no border, no uppercase, simpler styling for inline detail display
 const statusBadge = tv({
   base: "font-mono text-xs px-2 py-0.5 rounded",
   variants: {
@@ -224,7 +225,7 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
         <div className={container()}>
           <dt className={label()}>ID</dt>
           <dd>
-            <code className={`${value()} text-xs text-text-muted break-all select-all`}>
+            <code className="font-mono text-xs text-text-muted break-all select-all">
               {task.id}
             </code>
           </dd>
@@ -257,13 +258,15 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
                 saving={updateTask.isPending}
               />
             ) : (
-              <span
-                className={`${value()} cursor-pointer hover:text-accent transition-colors`}
-                onClick={() => !task.completed && startEdit("description", task.description)}
+              <button
+                type="button"
+                disabled={task.completed}
+                onClick={() => startEdit("description", task.description)}
+                className={`${value()} text-left p-0 border-0 bg-transparent cursor-pointer hover:text-accent transition-colors motion-reduce:transition-none disabled:cursor-default disabled:hover:text-text-primary`}
                 title={task.completed ? undefined : "Click to edit"}
               >
                 {task.description}
-              </span>
+              </button>
             )}
           </dd>
         </div>
@@ -290,13 +293,15 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
                 saving={updateTask.isPending}
               />
             ) : (
-              <span
-                className={`${value()} cursor-pointer hover:text-accent transition-colors`}
-                onClick={() => !task.completed && startEdit("priority", String(task.priority))}
+              <button
+                type="button"
+                disabled={task.completed}
+                onClick={() => startEdit("priority", String(task.priority))}
+                className={`${value()} text-left p-0 border-0 bg-transparent cursor-pointer hover:text-accent transition-colors motion-reduce:transition-none disabled:cursor-default disabled:hover:text-text-primary`}
                 title={task.completed ? undefined : "Click to edit (1-5)"}
               >
                 P{task.priority}
-              </span>
+              </button>
             )}
           </dd>
         </div>
@@ -315,13 +320,19 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
                 saving={updateTask.isPending}
               />
             ) : (
-              <pre
-                className={`${value()} whitespace-pre-wrap bg-surface-primary p-2 rounded text-text-muted cursor-pointer hover:border-accent border border-transparent transition-colors`}
-                onClick={() => !task.completed && startEdit("context", task.context.own)}
+              <button
+                type="button"
+                disabled={task.completed}
+                onClick={() => startEdit("context", task.context.own)}
+                className="w-full text-left p-0 border-0 bg-transparent cursor-pointer disabled:cursor-default"
                 title={task.completed ? undefined : "Click to edit"}
               >
-                {task.context.own || "(empty)"}
-              </pre>
+                <pre
+                  className={`${value()} whitespace-pre-wrap bg-surface-primary p-2 rounded text-text-muted hover:border-accent border border-transparent transition-colors motion-reduce:transition-none`}
+                >
+                  {task.context.own || "(empty)"}
+                </pre>
+              </button>
             )}
           </dd>
         </div>

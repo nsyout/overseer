@@ -12,6 +12,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -59,6 +60,9 @@ export function useKeyboardContext(): KeyboardContextValue {
  * Hook to register shortcuts for a specific scope.
  * Automatically unregisters when component unmounts.
  *
+ * Uses ref pattern to avoid re-registration on every render while still
+ * ensuring handlers have access to latest closure values.
+ *
  * @param make - Factory function returning shortcuts to register
  * @param deps - Dependencies that trigger re-registration when changed
  */
@@ -68,8 +72,12 @@ export function useKeyboardShortcuts(
 ): void {
   const { register } = useKeyboardContext();
 
+  // Keep make in a ref so effect doesn't depend on it directly
+  const makeRef = useRef(make);
+  makeRef.current = make;
+
   useEffect(() => {
-    const shortcuts = make();
+    const shortcuts = makeRef.current();
     const unregisters = shortcuts.map((s) =>
       register({
         ...s,
@@ -78,8 +86,8 @@ export function useKeyboardShortcuts(
       })
     );
     return () => unregisters.forEach((u) => u());
-    // deps passed by caller - they control when shortcuts re-register
-  }, [register, make, ...deps]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps controlled by caller via makeRef pattern
+  }, [register, ...deps]);
 }
 
 /**

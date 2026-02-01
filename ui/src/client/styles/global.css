@@ -111,3 +111,30 @@ pre,
 .react-flow-controls-themed button path {
   fill: currentColor !important;
 }
+
+/* React Flow MiniMap theming */
+.react-flow-minimap-themed {
+  background-color: var(--color-surface-primary) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+/* Animated blocker edges */
+.graph-edge-blocker {
+  animation: dashOffset 1s linear infinite;
+}
+
+@keyframes dashOffset {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Reduced motion: disable animations */
+@media (prefers-reduced-motion: reduce) {
+  .graph-edge-blocker {
+    animation: none;
+  }
+}

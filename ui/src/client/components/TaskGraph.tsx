@@ -1,8 +1,9 @@
-import { useState, useMemo, useCallback, memo } from "react";
+import { useState, useMemo, useCallback, memo, useRef, useEffect } from "react";
 import {
   ReactFlow,
   Controls,
   Background,
+  MiniMap,
   type Node,
   type Edge,
   type NodeProps,
@@ -10,28 +11,34 @@ import {
   Handle,
   Position,
   BackgroundVariant,
+  useReactFlow,
 } from "@xyflow/react";
 import dagre from "@dagrejs/dagre";
 import type { Task, TaskId } from "../../types.js";
+import { useKeyboardShortcuts, useKeyboardContext } from "../lib/keyboard.js";
+import { Badge } from "./ui/Badge.js";
 
 import "@xyflow/react/dist/style.css";
 
-// Node dimensions
-const NODE_WIDTH = 280;
-const NODE_HEIGHT = 80;
-const NODE_HEIGHT_COLLAPSED = 60; // Smaller when showing hidden count
+// Node dimensions - slightly larger for industrial style
+const NODE_WIDTH = 300;
+const NODE_HEIGHT = 90;
+const NODE_HEIGHT_COLLAPSED = 70;
 
 // Edge data with typed kind
 interface TaskEdgeData extends Record<string, unknown> {
   kind: "parent" | "blocker";
+  label?: string;
 }
 
 // Custom data for task nodes - needs index signature for xyflow
 interface TaskNodeData extends Record<string, unknown> {
   task: Task;
   childCount: number;
+  completedChildCount: number;
   isCollapsed: boolean;
   hiddenDescendantCount: number;
+  isFocused: boolean;
   onToggleCollapse: (id: TaskId) => void;
 }
 
@@ -65,7 +72,7 @@ const VIRTUAL_ROOT_ID = "__root__";
  */
 function getLayoutedElements(
   nodes: TaskNode[],
-  edges: TaskEdge[],
+  edges: TaskEdge[]
 ): { nodes: TaskNode[]; edges: TaskEdge[] } {
   if (nodes.length === 0) {
     return { nodes: [], edges: [] };
@@ -74,10 +81,10 @@ function getLayoutedElements(
   const dagreGraph = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
   dagreGraph.setGraph({
     rankdir: "LR", // Left-to-right: shows hierarchy horizontally
-    nodesep: 20, // Vertical spacing between siblings
-    ranksep: 60, // Horizontal spacing between hierarchy levels
-    marginx: 20,
-    marginy: 20,
+    nodesep: 24, // Vertical spacing between siblings
+    ranksep: 80, // Horizontal spacing between hierarchy levels
+    marginx: 24,
+    marginy: 24,
   });
 
   // Find milestone nodes (depth 0, no parent)
@@ -144,8 +151,7 @@ function getLayoutedElements(
  */
 function getDescendantIds(
   taskId: TaskId,
-  taskMap: Map<TaskId, Task>,
-  childrenMap: Map<TaskId, TaskId[]>,
+  childrenMap: Map<TaskId, TaskId[]>
 ): Set<TaskId> {
   const descendants = new Set<TaskId>();
   const stack = childrenMap.get(taskId) ?? [];
@@ -166,7 +172,8 @@ function getDescendantIds(
 function buildGraphElements(
   tasks: Task[],
   collapsedIds: Set<TaskId>,
-  onToggleCollapse: (id: TaskId) => void,
+  focusedId: TaskId | null,
+  onToggleCollapse: (id: TaskId) => void
 ): {
   nodes: TaskNode[];
   edges: TaskEdge[];
@@ -186,7 +193,7 @@ function buildGraphElements(
   // Find all hidden task IDs (descendants of collapsed nodes)
   const hiddenIds = new Set<TaskId>();
   for (const collapsedId of collapsedIds) {
-    const descendants = getDescendantIds(collapsedId, taskMap, childrenMap);
+    const descendants = getDescendantIds(collapsedId, childrenMap);
     for (const id of descendants) {
       hiddenIds.add(id);
     }
@@ -195,18 +202,25 @@ function buildGraphElements(
   // Count hidden descendants for each collapsed node
   const hiddenDescendantCounts = new Map<TaskId, number>();
   for (const collapsedId of collapsedIds) {
-    const descendants = getDescendantIds(collapsedId, taskMap, childrenMap);
+    const descendants = getDescendantIds(collapsedId, childrenMap);
     hiddenDescendantCounts.set(collapsedId, descendants.size);
   }
 
   // Filter to visible tasks only
   const visibleTasks = tasks.filter((t) => !hiddenIds.has(t.id));
 
-  // Build child count map (direct children only, for visible tasks)
+  // Build child count map and completed child count map
   const childCounts = new Map<TaskId, number>();
+  const completedChildCounts = new Map<TaskId, number>();
   for (const task of tasks) {
     if (task.parentId) {
       childCounts.set(task.parentId, (childCounts.get(task.parentId) ?? 0) + 1);
+      if (task.completed) {
+        completedChildCounts.set(
+          task.parentId,
+          (completedChildCounts.get(task.parentId) ?? 0) + 1
+        );
+      }
     }
   }
 
@@ -218,8 +232,10 @@ function buildGraphElements(
     data: {
       task,
       childCount: childCounts.get(task.id) ?? 0,
+      completedChildCount: completedChildCounts.get(task.id) ?? 0,
       isCollapsed: collapsedIds.has(task.id),
       hiddenDescendantCount: hiddenDescendantCounts.get(task.id) ?? 0,
+      isFocused: task.id === focusedId,
       onToggleCollapse,
     },
   }));
@@ -230,7 +246,7 @@ function buildGraphElements(
   const blockerEdgeIds = new Set<string>();
 
   for (const task of visibleTasks) {
-    // Parent → child edges (prominent, solid)
+    // Parent → child edges (solid, muted)
     if (task.parentId && visibleIds.has(task.parentId)) {
       edges.push({
         id: `parent-${task.parentId}-${task.id}`,
@@ -238,14 +254,14 @@ function buildGraphElements(
         target: task.id,
         type: "smoothstep",
         style: {
-          stroke: "var(--color-text-muted)",
+          stroke: "var(--color-text-dim)",
           strokeWidth: 2,
         },
         data: { kind: "parent" },
       });
     }
 
-    // BlockedBy edges (subtle, dashed) - blocker → blocked
+    // BlockedBy edges (dashed, animated, accent color) - blocker → blocked
     if (task.blockedBy) {
       for (const blockerId of task.blockedBy) {
         if (visibleIds.has(blockerId)) {
@@ -257,13 +273,13 @@ function buildGraphElements(
               source: blockerId,
               target: task.id,
               type: "straight",
+              className: "graph-edge-blocker",
               style: {
-                stroke: "var(--color-accent)",
-                strokeWidth: 1,
-                strokeDasharray: "4,4",
-                opacity: 0.5,
+                stroke: "var(--color-status-blocked)",
+                strokeWidth: 2,
+                strokeDasharray: "6,4",
               },
-              data: { kind: "blocker" },
+              data: { kind: "blocker", label: "blocks" },
             });
           }
         }
@@ -282,13 +298,13 @@ function buildGraphElements(
               source: task.id,
               target: blockedId,
               type: "straight",
+              className: "graph-edge-blocker",
               style: {
-                stroke: "var(--color-accent)",
-                strokeWidth: 1,
-                strokeDasharray: "4,4",
-                opacity: 0.5,
+                stroke: "var(--color-status-blocked)",
+                strokeWidth: 2,
+                strokeDasharray: "6,4",
               },
-              data: { kind: "blocker" },
+              data: { kind: "blocker", label: "blocks" },
             });
           }
         }
@@ -300,45 +316,60 @@ function buildGraphElements(
 }
 
 /**
- * Custom task node component with collapse/expand support
+ * Get status variant for Badge component
+ */
+function getStatusVariant(
+  task: Task
+): "pending" | "active" | "blocked" | "done" {
+  if (task.completed) return "done";
+  const isBlocked = (task.blockedBy?.length ?? 0) > 0;
+  if (isBlocked) return "blocked";
+  if (task.startedAt !== null) return "active";
+  return "pending";
+}
+
+/**
+ * Get human-readable status label
+ */
+function getStatusLabel(task: Task): string {
+  if (task.completed) return "DONE";
+  const isBlocked = (task.blockedBy?.length ?? 0) > 0;
+  if (isBlocked) return "BLOCKED";
+  if (task.startedAt !== null) return "ACTIVE";
+  return "PENDING";
+}
+
+/**
+ * Custom task node component - industrial card style
  */
 const TaskNodeComponent = memo(function TaskNodeComponent({
   data,
   selected,
 }: NodeProps<TaskNode>) {
-  const { task, childCount, isCollapsed, hiddenDescendantCount, onToggleCollapse } =
-    data;
+  const {
+    task,
+    childCount,
+    completedChildCount,
+    isCollapsed,
+    hiddenDescendantCount,
+    isFocused,
+    onToggleCollapse,
+  } = data;
 
-  const isBlocked = (task.blockedBy?.length ?? 0) > 0 && !task.completed;
   const isInProgress = task.startedAt !== null && !task.completed;
   const hasChildren = childCount > 0;
 
   const depthLabel =
-    task.depth === 0 ? "Milestone" : task.depth === 1 ? "Task" : "Subtask";
-
-  // Status styling
-  const statusColor = task.completed
-    ? "var(--color-status-done)"
-    : isBlocked
-      ? "var(--color-status-blocked)"
-      : isInProgress
-        ? "var(--color-status-active)"
-        : "var(--color-status-pending)";
-
-  const statusLabel = task.completed
-    ? "Done"
-    : isBlocked
-      ? "Blocked"
-      : isInProgress
-        ? "Active"
-        : "Pending";
+    task.depth === 0 ? "MILESTONE" : task.depth === 1 ? "TASK" : "SUBTASK";
+  const statusVariant = getStatusVariant(task);
+  const statusLabel = getStatusLabel(task);
 
   const handleToggle = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation(); // Don't trigger node selection
       onToggleCollapse(task.id);
     },
-    [onToggleCollapse, task.id],
+    [onToggleCollapse, task.id]
   );
 
   return (
@@ -347,11 +378,18 @@ const TaskNodeComponent = memo(function TaskNodeComponent({
       <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
       <div
         className={`
-          rounded-lg border-2 p-3 transition-all
-          bg-[var(--color-surface-primary)]
-          ${selected ? "border-[var(--color-accent)] shadow-lg shadow-[var(--color-accent)]/20" : "border-[var(--color-border)] hover:border-[var(--color-border-hover)]"}
+          border p-3 transition-colors motion-reduce:transition-none
+          bg-surface-primary
+          ${
+            selected
+              ? "border-accent shadow-[0_0_0_1px_var(--color-accent)]"
+              : isFocused
+                ? "border-accent/60"
+                : "border-border hover:border-border-hover"
+          }
         `}
         style={{ width: NODE_WIDTH }}
+        data-task-id={task.id}
       >
         {/* Header row */}
         <div className="flex items-center justify-between gap-2 mb-2">
@@ -360,15 +398,17 @@ const TaskNodeComponent = memo(function TaskNodeComponent({
             {hasChildren && (
               <button
                 onClick={handleToggle}
-                className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-                title={isCollapsed ? "Expand" : "Collapse"}
+                className="w-5 h-5 flex items-center justify-center hover:bg-surface-secondary text-text-muted hover:text-text-primary transition-colors motion-reduce:transition-none"
+                title={isCollapsed ? "Expand (→)" : "Collapse (←)"}
+                aria-label={isCollapsed ? "Expand" : "Collapse"}
               >
                 <svg
                   width="12"
                   height="12"
                   viewBox="0 0 12 12"
                   fill="none"
-                  className={`transition-transform ${isCollapsed ? "" : "rotate-90"}`}
+                  className={`transition-transform motion-reduce:transition-none ${isCollapsed ? "" : "rotate-90"}`}
+                  aria-hidden="true"
                 >
                   <path
                     d="M4 2L8 6L4 10"
@@ -380,48 +420,65 @@ const TaskNodeComponent = memo(function TaskNodeComponent({
                 </svg>
               </button>
             )}
-            {/* Status indicator */}
+            {/* Status indicator with pulsing animation for active */}
             <span
-              className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: statusColor }}
+              className={`
+                w-2.5 h-2.5 rounded-full flex-shrink-0
+                ${isInProgress ? "animate-pulse" : ""}
+              `}
+              style={{
+                backgroundColor:
+                  statusVariant === "done"
+                    ? "var(--color-status-done)"
+                    : statusVariant === "blocked"
+                      ? "var(--color-status-blocked)"
+                      : statusVariant === "active"
+                        ? "var(--color-status-active)"
+                        : "var(--color-status-pending)",
+              }}
+              aria-hidden="true"
             />
             {/* Depth label */}
-            <span className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-text-muted)]">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-text-muted">
               {depthLabel}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {/* Status badge */}
-            <span
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded"
-              style={{
-                backgroundColor: `color-mix(in srgb, ${statusColor} 20%, transparent)`,
-                color: statusColor,
-              }}
-            >
-              {statusLabel}
-            </span>
             {/* Priority */}
-            <span className="text-[10px] font-mono text-[var(--color-text-muted)]">
+            <span className="text-[10px] font-mono text-text-dim">
               P{task.priority}
             </span>
           </div>
         </div>
 
         {/* Description */}
-        <p className="text-sm text-[var(--color-text-primary)] line-clamp-2 leading-tight">
+        <p
+          className={`
+            text-sm font-mono line-clamp-2 leading-tight mb-2
+            ${task.completed ? "text-text-muted line-through" : "text-text-primary"}
+          `}
+        >
           {task.description}
         </p>
 
-        {/* Collapsed indicator showing hidden count */}
-        {isCollapsed && hiddenDescendantCount > 0 && (
-          <div className="mt-2 pt-2 border-t border-[var(--color-border)]">
-            <span className="text-[10px] font-mono text-[var(--color-accent)]">
-              +{hiddenDescendantCount} hidden{" "}
-              {hiddenDescendantCount === 1 ? "task" : "tasks"}
+        {/* Footer: Status badge + Progress indicator */}
+        <div className="flex items-center justify-between">
+          <Badge variant={statusVariant}>{statusLabel}</Badge>
+
+          {/* Progress indicator for parent tasks */}
+          {hasChildren && !isCollapsed && (
+            <span className="text-[10px] font-mono text-text-muted">
+              {completedChildCount}/{childCount} tasks
             </span>
-          </div>
-        )}
+          )}
+
+          {/* Collapsed indicator showing hidden count */}
+          {isCollapsed && hiddenDescendantCount > 0 && (
+            <span className="text-[10px] font-mono text-accent">
+              +{hiddenDescendantCount} hidden
+            </span>
+          )}
+        </div>
       </div>
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </>
@@ -450,6 +507,294 @@ function getDefaultCollapsedIds(tasks: Task[]): Set<TaskId> {
 }
 
 /**
+ * Build flat list of visible task IDs for keyboard navigation
+ */
+function buildFlatTaskList(
+  tasks: Task[],
+  collapsedIds: Set<TaskId>
+): TaskId[] {
+  const taskMap = new Map<TaskId, Task>(tasks.map((t) => [t.id, t]));
+  const childrenMap = new Map<TaskId, TaskId[]>();
+
+  for (const task of tasks) {
+    if (task.parentId) {
+      const siblings = childrenMap.get(task.parentId) ?? [];
+      siblings.push(task.id);
+      childrenMap.set(task.parentId, siblings);
+    }
+  }
+
+  // Find all hidden task IDs (descendants of collapsed nodes)
+  const hiddenIds = new Set<TaskId>();
+  for (const collapsedId of collapsedIds) {
+    const descendants = getDescendantIds(collapsedId, childrenMap);
+    for (const id of descendants) {
+      hiddenIds.add(id);
+    }
+  }
+
+  // Build flat list in tree order
+  const result: TaskId[] = [];
+
+  function traverse(parentId: TaskId | null): void {
+    const children = childrenMap.get(parentId as TaskId) ?? [];
+    // Also get root tasks (parentId = null)
+    if (parentId === null) {
+      for (const task of tasks) {
+        if (
+          task.parentId === null &&
+          !hiddenIds.has(task.id)
+        ) {
+          result.push(task.id);
+          traverse(task.id);
+        }
+      }
+    } else {
+      for (const childId of children) {
+        if (!hiddenIds.has(childId)) {
+          result.push(childId);
+          traverse(childId);
+        }
+      }
+    }
+  }
+
+  traverse(null);
+  return result;
+}
+
+/**
+ * Graph navigation controller - uses ReactFlow's fitView
+ */
+function GraphNavigation({
+  tasks,
+  focusedId,
+  setFocusedId,
+  collapsedIds,
+  setCollapsedIds,
+  onSelect,
+}: {
+  tasks: Task[];
+  focusedId: TaskId | null;
+  setFocusedId: (id: TaskId | null) => void;
+  collapsedIds: Set<TaskId>;
+  setCollapsedIds: React.Dispatch<React.SetStateAction<Set<TaskId>>>;
+  onSelect: (id: TaskId) => void;
+}) {
+  const { fitView, setCenter } = useReactFlow();
+  const { setActiveScope } = useKeyboardContext();
+
+  // Build flat task list for j/k navigation
+  const flatTasks = useMemo(
+    () => buildFlatTaskList(tasks, collapsedIds),
+    [tasks, collapsedIds]
+  );
+
+  // Build task map and children map
+  const taskMap = useMemo(
+    () => new Map<TaskId, Task>(tasks.map((t) => [t.id, t])),
+    [tasks]
+  );
+
+  const childrenMap = useMemo(() => {
+    const map = new Map<TaskId, TaskId[]>();
+    for (const task of tasks) {
+      if (task.parentId) {
+        const siblings = map.get(task.parentId) ?? [];
+        siblings.push(task.id);
+        map.set(task.parentId, siblings);
+      }
+    }
+    return map;
+  }, [tasks]);
+
+  // Center view on focused node
+  const centerOnNode = useCallback(
+    (id: TaskId) => {
+      // Get node element to find position
+      const nodeEl = document.querySelector(`[data-task-id="${id}"]`);
+      if (!nodeEl) return;
+      // Use fitView with specific nodes
+      fitView({
+        nodes: [{ id }],
+        duration: 150,
+        padding: 0.5,
+      });
+    },
+    [fitView]
+  );
+
+  // Navigation handlers
+  const moveDown = useCallback(() => {
+    if (flatTasks.length === 0) return;
+    const currentIdx = focusedId ? flatTasks.indexOf(focusedId) : -1;
+    const nextIdx = currentIdx < flatTasks.length - 1 ? currentIdx + 1 : 0;
+    const nextId = flatTasks[nextIdx];
+    if (nextId) {
+      setFocusedId(nextId);
+      centerOnNode(nextId);
+    }
+  }, [flatTasks, focusedId, setFocusedId, centerOnNode]);
+
+  const moveUp = useCallback(() => {
+    if (flatTasks.length === 0) return;
+    const currentIdx = focusedId ? flatTasks.indexOf(focusedId) : flatTasks.length;
+    const nextIdx = currentIdx > 0 ? currentIdx - 1 : flatTasks.length - 1;
+    const nextId = flatTasks[nextIdx];
+    if (nextId) {
+      setFocusedId(nextId);
+      centerOnNode(nextId);
+    }
+  }, [flatTasks, focusedId, setFocusedId, centerOnNode]);
+
+  const moveToParent = useCallback(() => {
+    if (!focusedId) return;
+    const task = taskMap.get(focusedId);
+    if (!task) return;
+
+    // If has children and not collapsed, collapse
+    const hasChildren = childrenMap.has(focusedId);
+    const isCollapsed = collapsedIds.has(focusedId);
+
+    if (hasChildren && !isCollapsed) {
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
+        next.add(focusedId);
+        return next;
+      });
+      return;
+    }
+
+    // Otherwise, move to parent
+    if (task.parentId) {
+      setFocusedId(task.parentId);
+      centerOnNode(task.parentId);
+    }
+  }, [focusedId, taskMap, childrenMap, collapsedIds, setCollapsedIds, setFocusedId, centerOnNode]);
+
+  const moveToChild = useCallback(() => {
+    if (!focusedId) return;
+
+    // If collapsed, expand
+    if (collapsedIds.has(focusedId)) {
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(focusedId);
+        return next;
+      });
+      return;
+    }
+
+    // Move to first child
+    const children = childrenMap.get(focusedId);
+    if (children && children.length > 0) {
+      const firstChild = children[0];
+      if (firstChild) {
+        setFocusedId(firstChild);
+        centerOnNode(firstChild);
+      }
+    }
+  }, [focusedId, collapsedIds, setCollapsedIds, childrenMap, setFocusedId, centerOnNode]);
+
+  const toggleCollapse = useCallback(() => {
+    if (!focusedId) return;
+    const hasChildren = childrenMap.has(focusedId);
+    if (hasChildren) {
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(focusedId)) {
+          next.delete(focusedId);
+        } else {
+          next.add(focusedId);
+        }
+        return next;
+      });
+    }
+  }, [focusedId, childrenMap, setCollapsedIds]);
+
+  const selectFocused = useCallback(() => {
+    if (focusedId) {
+      onSelect(focusedId);
+    }
+  }, [focusedId, onSelect]);
+
+  // Register keyboard shortcuts
+  useKeyboardShortcuts(
+    () => [
+      {
+        key: "j",
+        description: "Next node",
+        scope: "graph",
+        handler: moveDown,
+      },
+      {
+        key: "k",
+        description: "Previous node",
+        scope: "graph",
+        handler: moveUp,
+      },
+      {
+        key: "ArrowDown",
+        description: "Next node",
+        scope: "graph",
+        handler: moveDown,
+      },
+      {
+        key: "ArrowUp",
+        description: "Previous node",
+        scope: "graph",
+        handler: moveUp,
+      },
+      {
+        key: "h",
+        description: "Parent / collapse",
+        scope: "graph",
+        handler: moveToParent,
+      },
+      {
+        key: "l",
+        description: "Child / expand",
+        scope: "graph",
+        handler: moveToChild,
+      },
+      {
+        key: "ArrowLeft",
+        description: "Parent / collapse",
+        scope: "graph",
+        handler: moveToParent,
+      },
+      {
+        key: "ArrowRight",
+        description: "Child / expand",
+        scope: "graph",
+        handler: moveToChild,
+      },
+      {
+        key: "Space",
+        description: "Toggle collapse",
+        scope: "graph",
+        handler: toggleCollapse,
+      },
+      {
+        key: "Enter",
+        description: "Select focused task",
+        scope: "graph",
+        handler: selectFocused,
+      },
+    ],
+    [moveDown, moveUp, moveToParent, moveToChild, toggleCollapse, selectFocused]
+  );
+
+  // Set active scope when graph is rendered
+  useEffect(() => {
+    setActiveScope("graph");
+    return () => setActiveScope("global");
+  }, [setActiveScope]);
+
+  return null; // This component only handles navigation, no UI
+}
+
+/**
  * Interactive task dependency graph (read-only, fully derived from props)
  * Supports collapsible nodes for progressive disclosure.
  */
@@ -461,8 +806,14 @@ export function TaskGraph({
 }: TaskGraphProps) {
   // Track collapsed node IDs - default to collapsing depth-1 tasks with children
   const [collapsedIds, setCollapsedIds] = useState<Set<TaskId>>(() =>
-    getDefaultCollapsedIds(tasks),
+    getDefaultCollapsedIds(tasks)
   );
+
+  // Track focused node for keyboard navigation
+  const [focusedId, setFocusedId] = useState<TaskId | null>(null);
+
+  // Track minimap visibility
+  const [showMinimap, setShowMinimap] = useState(false);
 
   // Toggle collapse state for a node
   const handleToggleCollapse = useCallback((id: TaskId) => {
@@ -477,10 +828,27 @@ export function TaskGraph({
     });
   }, []);
 
+  // Sync focusedId with selectedId when selectedId changes
+  useEffect(() => {
+    if (selectedId) {
+      setFocusedId(selectedId);
+    }
+  }, [selectedId]);
+
+  // Initialize focus to first task if none
+  useEffect(() => {
+    if (!focusedId && tasks.length > 0) {
+      const firstTask = tasks.find((t) => t.depth === 0) ?? tasks[0];
+      if (firstTask) {
+        setFocusedId(firstTask.id);
+      }
+    }
+  }, [tasks, focusedId]);
+
   // Compute layout only when tasks or collapsed state changes
   const { nodes: layoutedNodes, edges: allEdges } = useMemo(
-    () => buildGraphElements(tasks, collapsedIds, handleToggleCollapse),
-    [tasks, collapsedIds, handleToggleCollapse],
+    () => buildGraphElements(tasks, collapsedIds, focusedId, handleToggleCollapse),
+    [tasks, collapsedIds, focusedId, handleToggleCollapse]
   );
 
   // Filter edges based on showBlockers toggle
@@ -489,7 +857,7 @@ export function TaskGraph({
       showBlockers
         ? allEdges
         : allEdges.filter((e) => e.data?.kind !== "blocker"),
-    [allEdges, showBlockers],
+    [allEdges, showBlockers]
   );
 
   // Apply selection separately (cheap, no Dagre re-run)
@@ -499,7 +867,7 @@ export function TaskGraph({
         ...n,
         selected: selectedId !== null && n.data.task.id === selectedId,
       })),
-    [layoutedNodes, selectedId],
+    [layoutedNodes, selectedId]
   );
 
   // Handle node click via onNodeClick (not stored in node data)
@@ -507,21 +875,22 @@ export function TaskGraph({
     (_, node) => {
       if (isTaskNodeData(node.data)) {
         onSelect(node.data.task.id);
+        setFocusedId(node.data.task.id);
       }
     },
-    [onSelect],
+    [onSelect]
   );
 
   if (tasks.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[var(--color-text-muted)]">
-        <p>No tasks to display</p>
+      <div className="flex-1 flex items-center justify-center text-text-muted font-mono">
+        <p>NO TASKS TO DISPLAY</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full min-h-0" style={{ minHeight: 0 }}>
+    <div className="w-full h-full min-h-0 relative" style={{ minHeight: 0 }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -543,6 +912,14 @@ export function TaskGraph({
         onlyRenderVisibleElements
         proOptions={{ hideAttribution: true }}
       >
+        <GraphNavigation
+          tasks={tasks}
+          focusedId={focusedId}
+          setFocusedId={setFocusedId}
+          collapsedIds={collapsedIds}
+          setCollapsedIds={setCollapsedIds}
+          onSelect={onSelect}
+        />
         <Background
           variant={BackgroundVariant.Dots}
           gap={20}
@@ -553,7 +930,80 @@ export function TaskGraph({
           showInteractive={false}
           className="react-flow-controls-themed"
         />
+        {showMinimap && (
+          <MiniMap
+            nodeStrokeWidth={3}
+            nodeColor={(node) => {
+              const data = node.data as TaskNodeData;
+              if (!data?.task) return "var(--color-border)";
+              const variant = getStatusVariant(data.task);
+              switch (variant) {
+                case "done":
+                  return "var(--color-status-done)";
+                case "blocked":
+                  return "var(--color-status-blocked)";
+                case "active":
+                  return "var(--color-status-active)";
+                default:
+                  return "var(--color-status-pending)";
+              }
+            }}
+            className="react-flow-minimap-themed"
+            maskColor="rgba(0, 0, 0, 0.7)"
+          />
+        )}
       </ReactFlow>
+
+      {/* Minimap toggle button */}
+      <button
+        onClick={() => setShowMinimap((prev) => !prev)}
+        className={`
+          absolute bottom-4 right-14 z-10
+          w-8 h-8 flex items-center justify-center
+          border transition-colors motion-reduce:transition-none
+          ${
+            showMinimap
+              ? "bg-accent text-bg-primary border-accent"
+              : "bg-surface-primary text-text-muted border-border hover:border-border-hover hover:text-text-primary"
+          }
+        `}
+        title="Toggle minimap (m)"
+        aria-label={showMinimap ? "Hide minimap" : "Show minimap"}
+        aria-pressed={showMinimap}
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
+          <rect
+            x="1"
+            y="1"
+            width="14"
+            height="14"
+            rx="1"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+          <rect
+            x="3"
+            y="3"
+            width="4"
+            height="4"
+            fill="currentColor"
+            opacity="0.5"
+          />
+        </svg>
+      </button>
+
+      {/* Navigation hint */}
+      <div className="absolute bottom-4 left-4 z-10 px-2 py-1 bg-surface-primary/80 border border-border text-xs text-text-dim font-mono">
+        <span className="opacity-70">h/l</span> collapse/expand{" "}
+        <span className="opacity-70">j/k</span> navigate{" "}
+        <span className="opacity-70">Enter</span> select
+      </div>
     </div>
   );
 }
