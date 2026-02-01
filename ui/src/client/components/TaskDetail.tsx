@@ -1,10 +1,23 @@
 import { useState, useCallback, useEffect } from "react";
+import { tv } from "tailwind-variants";
 import {
   useUpdateTask,
   useCompleteTask,
   useDeleteTask,
   useLearnings,
 } from "../lib/queries.js";
+import { useKeyboardShortcuts, useKeyboardContext } from "../lib/keyboard.js";
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
+  DialogFooter,
+} from "./ui/Dialog.js";
+import { Button } from "./ui/Button.js";
+import { Textarea } from "./ui/Textarea.js";
+import { Kbd } from "./ui/Kbd.js";
 import type { TaskWithContext, TaskId, Learning } from "../../types.js";
 
 interface TaskDetailProps {
@@ -14,8 +27,44 @@ interface TaskDetailProps {
 
 type EditMode = "none" | "description" | "context" | "priority";
 
+// Field styling variants
+const field = tv({
+  slots: {
+    container: "space-y-1",
+    label: "font-mono text-xs font-medium uppercase tracking-wider text-text-muted",
+    value: "font-mono text-sm text-text-primary",
+  },
+});
+
+const { container, label, value } = field();
+
+// Status badge variant
+const statusBadge = tv({
+  base: "font-mono text-xs px-2 py-0.5 rounded",
+  variants: {
+    status: {
+      pending: "bg-status-pending/20 text-status-pending",
+      active: "bg-status-active/20 text-status-active",
+      blocked: "bg-status-blocked/20 text-status-blocked",
+      done: "bg-status-done/20 text-status-done",
+    },
+  },
+});
+
+// Edit field styling
+const editField = tv({
+  base: [
+    "w-full font-mono text-sm",
+    "bg-surface-primary border border-accent rounded",
+    "px-2 py-1.5",
+    "focus:outline-none focus:ring-1 focus:ring-accent",
+  ],
+});
+
 /**
- * Task detail panel with edit/complete/delete functionality
+ * Task detail panel with industrial styling and keyboard shortcuts.
+ * 
+ * Keyboard: e=edit, c=complete (if unblocked), d=delete (with confirm)
  */
 export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
   const [editMode, setEditMode] = useState<EditMode>("none");
@@ -24,6 +73,7 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [completeResult, setCompleteResult] = useState("");
 
+  const { setActiveScope } = useKeyboardContext();
   const { data: learnings } = useLearnings(task.id);
   const updateTask = useUpdateTask();
   const completeTask = useCompleteTask();
@@ -34,9 +84,15 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
 
   const isBlocked = (task.blockedBy?.length ?? 0) > 0;
 
-  const startEdit = useCallback((mode: EditMode, value: string) => {
+  // Set detail scope when mounted and task selected
+  useEffect(() => {
+    setActiveScope("detail");
+    return () => setActiveScope("global");
+  }, [setActiveScope]);
+
+  const startEdit = useCallback((mode: EditMode, val: string) => {
     setEditMode(mode);
-    setEditValue(value);
+    setEditValue(val);
   }, []);
 
   const cancelEdit = useCallback(() => {
@@ -91,338 +147,390 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
     });
   }, [task.id, deleteTask, onDeleted]);
 
+  // Reset edit mode when task changes
   useEffect(() => {
     cancelEdit();
   }, [task.id, cancelEdit]);
 
-  return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <header className="p-4 border-b border-[var(--color-border)]">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-mono px-2 py-0.5 rounded bg-[var(--color-surface-primary)] text-[var(--color-text-muted)]">
-            {depthLabel}
-          </span>
-          <StatusBadge task={task} />
-        </div>
-        {editMode === "description" ? (
-          <EditField
-            value={editValue}
-            onChange={setEditValue}
-            onSave={saveEdit}
-            onCancel={cancelEdit}
-            multiline
-            saving={updateTask.isPending}
-          />
-        ) : (
-          <h2
-            className="text-lg font-medium cursor-pointer hover:text-[var(--color-accent)] transition-colors"
-            onClick={() => startEdit("description", task.description)}
-            title="Click to edit"
-          >
-            {task.description}
-          </h2>
-        )}
-      </header>
-
-      {/* Content */}
-      <dl className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* ID */}
-        <Field label="ID">
-          <code className="font-mono text-xs text-[var(--color-text-muted)] break-all select-all">
-            {task.id}
-          </code>
-        </Field>
-
-        {/* Priority */}
-        <Field label="Priority">
-          {editMode === "priority" ? (
-            <EditField
-              value={editValue}
-              onChange={setEditValue}
-              onSave={saveEdit}
-              onCancel={cancelEdit}
-              type="number"
-              min={1}
-              max={5}
-              saving={updateTask.isPending}
-            />
-          ) : (
-            <span
-              className="font-mono cursor-pointer hover:text-[var(--color-accent)] transition-colors"
-              onClick={() => startEdit("priority", String(task.priority))}
-              title="Click to edit (1-5)"
-            >
-              P{task.priority}
-            </span>
-          )}
-        </Field>
-
-        {/* Context */}
-        <Field label="Context">
-          {editMode === "context" ? (
-            <EditField
-              value={editValue}
-              onChange={setEditValue}
-              onSave={saveEdit}
-              onCancel={cancelEdit}
-              multiline
-              saving={updateTask.isPending}
-            />
-          ) : (
-            <pre
-              className="text-sm whitespace-pre-wrap font-mono bg-[var(--color-surface-primary)] p-2 rounded text-[var(--color-text-muted)] cursor-pointer hover:border-[var(--color-accent)] border border-transparent transition-colors"
-              onClick={() => startEdit("context", task.context.own)}
-              title="Click to edit"
-            >
-              {task.context.own || "(empty)"}
-            </pre>
-          )}
-        </Field>
-
-        {/* Result (read-only, only shown when completed) */}
-        {task.result && (
-          <Field label="Result">
-            <pre className="text-sm whitespace-pre-wrap font-mono bg-[var(--color-surface-primary)] p-2 rounded">
-              {task.result}
-            </pre>
-          </Field>
-        )}
-
-        {/* Blockers */}
-        {task.blockedBy && task.blockedBy.length > 0 && (
-          <Field label="Blocked By">
-            <ul className="text-sm space-y-1">
-              {task.blockedBy.map((blockerId: TaskId) => (
-                <li
-                  key={blockerId}
-                  className="font-mono text-xs text-[var(--color-status-blocked)]"
-                >
-                  {blockerId}
-                </li>
-              ))}
-            </ul>
-          </Field>
-        )}
-
-        {/* Blocks */}
-        {task.blocks && task.blocks.length > 0 && (
-          <Field label="Blocks">
-            <ul className="text-sm space-y-1">
-              {task.blocks.map((blockedId: TaskId) => (
-                <li
-                  key={blockedId}
-                  className="font-mono text-xs text-[var(--color-text-muted)]"
-                >
-                  {blockedId}
-                </li>
-              ))}
-            </ul>
-          </Field>
-        )}
-
-        {/* Learnings */}
-        {learnings && learnings.length > 0 && (
-          <Field label={`Learnings (${learnings.length})`}>
-            <ul className="text-sm space-y-2">
-              {learnings.map((learning: Learning) => (
-                <li
-                  key={learning.id}
-                  className="font-mono text-xs p-2 bg-[var(--color-surface-primary)] rounded border-l-2 border-[var(--color-accent)]"
-                >
-                  {learning.content}
-                </li>
-              ))}
-            </ul>
-          </Field>
-        )}
-
-        {/* Timestamps */}
-        <Field label="Created">
-          <time className="text-sm text-[var(--color-text-muted)]">
-            {new Date(task.createdAt).toLocaleString()}
-          </time>
-        </Field>
-
-        {task.startedAt && (
-          <Field label="Started">
-            <time className="text-sm text-[var(--color-text-muted)]">
-              {new Date(task.startedAt).toLocaleString()}
-            </time>
-          </Field>
-        )}
-
-        {task.completedAt && (
-          <Field label="Completed">
-            <time className="text-sm text-[var(--color-text-muted)]">
-              {new Date(task.completedAt).toLocaleString()}
-            </time>
-          </Field>
-        )}
-
-        {task.commitSha && (
-          <Field label="Commit">
-            <code className="font-mono text-xs text-[var(--color-text-muted)]">
-              {task.commitSha}
-            </code>
-          </Field>
-        )}
-      </dl>
-
-      {/* Action Buttons */}
-      {!task.completed && (
-        <footer className="p-4 border-t border-[var(--color-border)] space-y-2">
-          <button
-            type="button"
-            onClick={() => setShowCompleteDialog(true)}
-            disabled={isBlocked}
-            className={`
-              w-full py-2 px-4 rounded font-medium text-sm transition-colors
-              ${
-                isBlocked
-                  ? "bg-[var(--color-surface-primary)] text-[var(--color-text-muted)] cursor-not-allowed"
-                  : "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent)]/80"
-              }
-            `}
-            title={isBlocked ? "Complete blockers first" : "Complete this task"}
-          >
-            {isBlocked ? "Blocked" : "Complete Task"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowDeleteDialog(true)}
-            className="w-full py-2 px-4 rounded font-medium text-sm bg-[var(--color-surface-primary)] text-[var(--color-status-blocked)] hover:bg-[var(--color-status-blocked)]/20 transition-colors"
-          >
-            Delete Task
-          </button>
-        </footer>
-      )}
-
-      {/* Complete Dialog */}
-      {showCompleteDialog && (
-        <Dialog
-          title="Complete Task"
-          onClose={() => setShowCompleteDialog(false)}
-        >
-          <p className="text-sm text-[var(--color-text-muted)] mb-4">
-            Add an optional result summary for this task.
-          </p>
-          <textarea
-            value={completeResult}
-            onChange={(e) => setCompleteResult(e.target.value)}
-            placeholder="What was accomplished? (optional)"
-            rows={4}
-            className="w-full p-2 rounded bg-[var(--color-surface-primary)] border border-[var(--color-border)] text-sm font-mono focus:outline-none focus:border-[var(--color-accent)]"
-          />
-          <div className="flex gap-2 mt-4">
-            <button
-              type="button"
-              onClick={() => setShowCompleteDialog(false)}
-              className="flex-1 py-2 px-4 rounded text-sm bg-[var(--color-surface-primary)] hover:bg-[var(--color-border)] transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleComplete}
-              disabled={completeTask.isPending}
-              className="flex-1 py-2 px-4 rounded text-sm bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent)]/80 transition-colors disabled:opacity-50"
-            >
-              {completeTask.isPending ? "Completing..." : "Complete"}
-            </button>
-          </div>
-          {completeTask.isError && (
-            <p className="text-sm text-[var(--color-status-blocked)] mt-2">
-              {completeTask.error.message}
-            </p>
-          )}
-        </Dialog>
-      )}
-
-      {/* Delete Dialog */}
-      {showDeleteDialog && (
-        <Dialog
-          title="Delete Task"
-          onClose={() => setShowDeleteDialog(false)}
-        >
-          <p className="text-sm text-[var(--color-text-muted)] mb-4">
-            Are you sure you want to delete this task? This action cannot be
-            undone.
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setShowDeleteDialog(false)}
-              className="flex-1 py-2 px-4 rounded text-sm bg-[var(--color-surface-primary)] hover:bg-[var(--color-border)] transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={deleteTask.isPending}
-              className="flex-1 py-2 px-4 rounded text-sm bg-[var(--color-status-blocked)] text-white hover:bg-[var(--color-status-blocked)]/80 transition-colors disabled:opacity-50"
-            >
-              {deleteTask.isPending ? "Deleting..." : "Delete"}
-            </button>
-          </div>
-          {deleteTask.isError && (
-            <p className="text-sm text-[var(--color-status-blocked)] mt-2">
-              {deleteTask.error.message}
-            </p>
-          )}
-        </Dialog>
-      )}
-    </div>
+  // Keyboard shortcuts for detail scope
+  useKeyboardShortcuts(
+    () => [
+      {
+        key: "e",
+        description: "Edit task description",
+        scope: "detail",
+        handler: () => {
+          if (editMode === "none" && !task.completed) {
+            startEdit("description", task.description);
+          }
+        },
+      },
+      {
+        key: "c",
+        description: "Complete task",
+        scope: "detail",
+        handler: () => {
+          if (!task.completed && !isBlocked) {
+            setShowCompleteDialog(true);
+          }
+        },
+      },
+      {
+        key: "d",
+        description: "Delete task",
+        scope: "detail",
+        handler: () => {
+          if (!task.completed) {
+            setShowDeleteDialog(true);
+          }
+        },
+      },
+      {
+        key: "Escape",
+        description: "Cancel edit",
+        scope: "detail",
+        handler: () => {
+          if (editMode !== "none") {
+            cancelEdit();
+          }
+        },
+      },
+    ],
+    [task.id, task.completed, task.description, isBlocked, editMode, startEdit, cancelEdit]
   );
-}
 
-function StatusBadge({ task }: { task: TaskWithContext }) {
-  const isBlocked = (task.blockedBy?.length ?? 0) > 0 && !task.completed;
-  const isInProgress = task.startedAt !== null && !task.completed;
-
-  const statusColor = task.completed
-    ? "var(--color-status-done)"
+  // Derive status
+  const status = task.completed
+    ? "done"
     : isBlocked
-      ? "var(--color-status-blocked)"
-      : isInProgress
-        ? "var(--color-status-active)"
-        : "var(--color-status-pending)";
+      ? "blocked"
+      : task.startedAt
+        ? "active"
+        : "pending";
 
   const statusLabel = task.completed
     ? "Completed"
     : isBlocked
       ? "Blocked"
-      : isInProgress
+      : task.startedAt
         ? "In Progress"
         : "Pending";
 
   return (
-    <span
-      className="text-xs font-mono px-2 py-0.5 rounded"
-      style={{
-        backgroundColor: `color-mix(in srgb, ${statusColor} 20%, transparent)`,
-        color: statusColor,
-      }}
-    >
-      {statusLabel}
-    </span>
-  );
-}
+    <div className="flex flex-col h-full">
+      {/* Content - scrollable area with fields */}
+      <dl className="flex-1 overflow-y-auto p-4 grid grid-cols-2 gap-x-6 gap-y-4">
+        {/* ID */}
+        <div className={container()}>
+          <dt className={label()}>ID</dt>
+          <dd>
+            <code className={`${value()} text-xs text-text-muted break-all select-all`}>
+              {task.id}
+            </code>
+          </dd>
+        </div>
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="field-group">
-      <dt className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-1">
-        {label}
-      </dt>
-      <dd className="m-0">{children}</dd>
+        {/* Status */}
+        <div className={container()}>
+          <dt className={label()}>Status</dt>
+          <dd>
+            <span className={statusBadge({ status })}>{statusLabel}</span>
+          </dd>
+        </div>
+
+        {/* Description */}
+        <div className={`${container()} col-span-2`}>
+          <dt className={label()}>
+            Description
+            {!task.completed && editMode === "none" && (
+              <span className="ml-2 text-text-dim">[<Kbd size="sm">e</Kbd> to edit]</span>
+            )}
+          </dt>
+          <dd>
+            {editMode === "description" ? (
+              <EditField
+                value={editValue}
+                onChange={setEditValue}
+                onSave={saveEdit}
+                onCancel={cancelEdit}
+                multiline
+                saving={updateTask.isPending}
+              />
+            ) : (
+              <span
+                className={`${value()} cursor-pointer hover:text-accent transition-colors`}
+                onClick={() => !task.completed && startEdit("description", task.description)}
+                title={task.completed ? undefined : "Click to edit"}
+              >
+                {task.description}
+              </span>
+            )}
+          </dd>
+        </div>
+
+        {/* Type/Depth */}
+        <div className={container()}>
+          <dt className={label()}>Type</dt>
+          <dd className={value()}>{depthLabel}</dd>
+        </div>
+
+        {/* Priority */}
+        <div className={container()}>
+          <dt className={label()}>Priority</dt>
+          <dd>
+            {editMode === "priority" ? (
+              <EditField
+                value={editValue}
+                onChange={setEditValue}
+                onSave={saveEdit}
+                onCancel={cancelEdit}
+                type="number"
+                min={1}
+                max={5}
+                saving={updateTask.isPending}
+              />
+            ) : (
+              <span
+                className={`${value()} cursor-pointer hover:text-accent transition-colors`}
+                onClick={() => !task.completed && startEdit("priority", String(task.priority))}
+                title={task.completed ? undefined : "Click to edit (1-5)"}
+              >
+                P{task.priority}
+              </span>
+            )}
+          </dd>
+        </div>
+
+        {/* Context */}
+        <div className={`${container()} col-span-2`}>
+          <dt className={label()}>Context</dt>
+          <dd>
+            {editMode === "context" ? (
+              <EditField
+                value={editValue}
+                onChange={setEditValue}
+                onSave={saveEdit}
+                onCancel={cancelEdit}
+                multiline
+                saving={updateTask.isPending}
+              />
+            ) : (
+              <pre
+                className={`${value()} whitespace-pre-wrap bg-surface-primary p-2 rounded text-text-muted cursor-pointer hover:border-accent border border-transparent transition-colors`}
+                onClick={() => !task.completed && startEdit("context", task.context.own)}
+                title={task.completed ? undefined : "Click to edit"}
+              >
+                {task.context.own || "(empty)"}
+              </pre>
+            )}
+          </dd>
+        </div>
+
+        {/* Result (read-only, only shown when completed) */}
+        {task.result && (
+          <div className={`${container()} col-span-2`}>
+            <dt className={label()}>Result</dt>
+            <dd>
+              <pre className={`${value()} whitespace-pre-wrap bg-surface-primary p-2 rounded`}>
+                {task.result}
+              </pre>
+            </dd>
+          </div>
+        )}
+
+        {/* Blockers */}
+        {task.blockedBy && task.blockedBy.length > 0 && (
+          <div className={`${container()} col-span-2`}>
+            <dt className={label()}>Blocked By</dt>
+            <dd>
+              <ul className="space-y-1">
+                {task.blockedBy.map((blockerId: TaskId) => (
+                  <li key={blockerId} className="font-mono text-xs text-status-blocked">
+                    {blockerId}
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </div>
+        )}
+
+        {/* Blocks */}
+        {task.blocks && task.blocks.length > 0 && (
+          <div className={`${container()} col-span-2`}>
+            <dt className={label()}>Blocks</dt>
+            <dd>
+              <ul className="space-y-1">
+                {task.blocks.map((blockedId: TaskId) => (
+                  <li key={blockedId} className="font-mono text-xs text-text-muted">
+                    {blockedId}
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </div>
+        )}
+
+        {/* Learnings */}
+        {learnings && learnings.length > 0 && (
+          <div className={`${container()} col-span-2`}>
+            <dt className={label()}>Learnings ({learnings.length})</dt>
+            <dd>
+              <ul className="space-y-2">
+                {learnings.map((learning: Learning) => (
+                  <li
+                    key={learning.id}
+                    className="font-mono text-xs p-2 bg-surface-primary rounded border-l-2 border-accent"
+                  >
+                    {learning.content}
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </div>
+        )}
+
+        {/* Timestamps row */}
+        <div className={container()}>
+          <dt className={label()}>Created</dt>
+          <dd>
+            <time className="font-mono text-xs text-text-muted">
+              {new Date(task.createdAt).toLocaleString()}
+            </time>
+          </dd>
+        </div>
+
+        {task.startedAt && (
+          <div className={container()}>
+            <dt className={label()}>Started</dt>
+            <dd>
+              <time className="font-mono text-xs text-text-muted">
+                {new Date(task.startedAt).toLocaleString()}
+              </time>
+            </dd>
+          </div>
+        )}
+
+        {task.completedAt && (
+          <div className={container()}>
+            <dt className={label()}>Completed</dt>
+            <dd>
+              <time className="font-mono text-xs text-text-muted">
+                {new Date(task.completedAt).toLocaleString()}
+              </time>
+            </dd>
+          </div>
+        )}
+
+        {task.commitSha && (
+          <div className={container()}>
+            <dt className={label()}>Commit</dt>
+            <dd>
+              <code className="font-mono text-xs text-text-muted">{task.commitSha}</code>
+            </dd>
+          </div>
+        )}
+      </dl>
+
+      {/* Action buttons footer */}
+      {!task.completed && (
+        <footer className="p-4 border-t border-border flex gap-2">
+          <Button
+            variant={isBlocked ? "secondary" : "primary"}
+            onClick={() => setShowCompleteDialog(true)}
+            disabled={isBlocked}
+            className="flex-1"
+            title={isBlocked ? "Complete blockers first" : "Complete this task"}
+          >
+            {isBlocked ? "Blocked" : "Complete"}
+            {!isBlocked && <Kbd size="sm" className="ml-1">c</Kbd>}
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => setShowDeleteDialog(true)}
+            title="Delete this task"
+          >
+            Delete
+            <Kbd size="sm" className="ml-1">d</Kbd>
+          </Button>
+        </footer>
+      )}
+
+      {/* Complete Dialog */}
+      <Dialog
+        open={showCompleteDialog}
+        onOpenChange={setShowCompleteDialog}
+      >
+        <DialogHeader>
+          <DialogTitle>Complete Task</DialogTitle>
+          <DialogDescription>
+            Add an optional result summary for this task.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <Textarea
+            value={completeResult}
+            onChange={(e) => setCompleteResult(e.target.value)}
+            placeholder="What was accomplished? (optional)"
+            rows={4}
+          />
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            variant="secondary"
+            onClick={() => setShowCompleteDialog(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleComplete}
+            disabled={completeTask.isPending}
+          >
+            {completeTask.isPending ? "Completing..." : "Complete"}
+          </Button>
+        </DialogFooter>
+        {completeTask.isError && (
+          <div className="px-6 pb-4">
+            <p className="text-sm text-status-blocked">
+              {completeTask.error.message}
+            </p>
+          </div>
+        )}
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+      >
+        <DialogHeader>
+          <DialogTitle>Delete Task</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete this task? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            variant="secondary"
+            onClick={() => setShowDeleteDialog(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleDelete}
+            disabled={deleteTask.isPending}
+          >
+            {deleteTask.isPending ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogFooter>
+        {deleteTask.isError && (
+          <div className="px-6 pb-4">
+            <p className="text-sm text-status-blocked">
+              {deleteTask.error.message}
+            </p>
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }
@@ -452,6 +560,7 @@ function EditField({
 }: EditFieldProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
+      e.stopPropagation(); // Prevent keyboard framework from handling
       onCancel();
     } else if (e.key === "Enter" && !multiline) {
       onSave();
@@ -459,9 +568,6 @@ function EditField({
       onSave();
     }
   };
-
-  const inputClasses =
-    "w-full p-2 rounded bg-[var(--color-surface-primary)] border border-[var(--color-accent)] text-sm font-mono focus:outline-none";
 
   return (
     <div className="space-y-2">
@@ -471,7 +577,7 @@ function EditField({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={4}
-          className={inputClasses}
+          className={editField()}
           autoFocus
         />
       ) : (
@@ -482,57 +588,17 @@ function EditField({
           onKeyDown={handleKeyDown}
           min={min}
           max={max}
-          className={inputClasses}
+          className={editField()}
           autoFocus
         />
       )}
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1 text-xs rounded bg-[var(--color-surface-primary)] hover:bg-[var(--color-border)] transition-colors"
-        >
+        <Button variant="secondary" size="sm" onClick={onCancel}>
           Cancel
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saving}
-          className="px-3 py-1 text-xs rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent)]/80 transition-colors disabled:opacity-50"
-        >
+        </Button>
+        <Button size="sm" onClick={onSave} disabled={saving}>
           {saving ? "Saving..." : "Save"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-interface DialogProps {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}
-
-function Dialog({ title, onClose, children }: DialogProps) {
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-6 w-full max-w-md shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-medium mb-4">{title}</h3>
-        {children}
+        </Button>
       </div>
     </div>
   );

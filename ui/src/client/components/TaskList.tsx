@@ -134,6 +134,12 @@ export function TaskList({ tasks, selectedId, onSelect }: TaskListProps) {
     return result;
   }, [tasksByParent, visibleTaskIds]);
 
+  // Precompute taskId -> index map for O(1) lookup in TaskTreeNode
+  const indexById = useMemo(
+    () => new Map(flatVisibleTasks.map((t, i) => [t.id, i] as const)),
+    [flatVisibleTasks]
+  );
+
   // Get milestones (depth 0) that are visible
   const visibleMilestones = useMemo(() => {
     return tasks.filter((t) => t.depth === 0 && visibleTaskIds.has(t.id));
@@ -174,13 +180,10 @@ export function TaskList({ tasks, selectedId, onSelect }: TaskListProps) {
 
   // Sync focusedIndex with selectedId when selectedId changes externally
   useEffect(() => {
-    if (selectedId) {
-      const idx = flatVisibleTasks.findIndex((t) => t.id === selectedId);
-      if (idx !== -1 && idx !== focusedIndex) {
-        setFocusedIndex(idx);
-      }
-    }
-  }, [selectedId, flatVisibleTasks, focusedIndex]);
+    if (!selectedId) return;
+    const idx = flatVisibleTasks.findIndex((t) => t.id === selectedId);
+    if (idx !== -1) setFocusedIndex(idx);
+  }, [selectedId, flatVisibleTasks]);
 
   // Scroll focused item into view
   useEffect(() => {
@@ -190,15 +193,23 @@ export function TaskList({ tasks, selectedId, onSelect }: TaskListProps) {
     }
   }, [focusedIndex]);
 
-  // Navigation handlers
+  // Navigation handlers - move DOM focus for screen reader announcement
   const moveUp = useCallback(() => {
-    setFocusedIndex((prev) => Math.max(0, prev - 1));
+    setFocusedIndex((prev) => {
+      const next = Math.max(0, prev - 1);
+      // Move DOM focus after state update
+      setTimeout(() => itemRefs.current.get(next)?.focus({ preventScroll: true }), 0);
+      return next;
+    });
   }, []);
 
   const moveDown = useCallback(() => {
-    setFocusedIndex((prev) =>
-      Math.min(flatVisibleTasks.length - 1, prev + 1)
-    );
+    setFocusedIndex((prev) => {
+      const next = Math.min(flatVisibleTasks.length - 1, prev + 1);
+      // Move DOM focus after state update
+      setTimeout(() => itemRefs.current.get(next)?.focus({ preventScroll: true }), 0);
+      return next;
+    });
   }, [flatVisibleTasks.length]);
 
   const selectFocused = useCallback(() => {
@@ -208,7 +219,7 @@ export function TaskList({ tasks, selectedId, onSelect }: TaskListProps) {
     }
   }, [flatVisibleTasks, focusedIndex, onSelect]);
 
-  // Register keyboard shortcuts
+  // Register keyboard shortcuts (j/k for vim users, arrows for accessibility)
   useKeyboardShortcuts(
     () => [
       {
@@ -219,6 +230,18 @@ export function TaskList({ tasks, selectedId, onSelect }: TaskListProps) {
       },
       {
         key: "k",
+        description: "Move up in list",
+        scope: "list",
+        handler: moveUp,
+      },
+      {
+        key: "ArrowDown",
+        description: "Move down in list",
+        scope: "list",
+        handler: moveDown,
+      },
+      {
+        key: "ArrowUp",
         description: "Move up in list",
         scope: "list",
         handler: moveUp,
@@ -282,11 +305,10 @@ export function TaskList({ tasks, selectedId, onSelect }: TaskListProps) {
         ))}
       </div>
 
-      {/* Task list */}
+      {/* Task list - uses roving tabindex for keyboard nav */}
       <div
         ref={listRef}
         className="flex-1 overflow-y-auto p-2"
-        role="listbox"
         aria-label="Task list"
       >
         {visibleMilestones.length === 0 ? (
@@ -303,7 +325,7 @@ export function TaskList({ tasks, selectedId, onSelect }: TaskListProps) {
                 visibleTaskIds={visibleTaskIds}
                 selectedId={selectedId}
                 focusedIndex={focusedIndex}
-                flatVisibleTasks={flatVisibleTasks}
+                indexById={indexById}
                 onSelect={onSelect}
                 onFocus={setFocusedIndex}
                 itemRefs={itemRefs}
@@ -329,7 +351,7 @@ interface TaskTreeNodeProps {
   visibleTaskIds: Set<TaskId>;
   selectedId: TaskId | null;
   focusedIndex: number;
-  flatVisibleTasks: Task[];
+  indexById: Map<TaskId, number>;
   onSelect: (id: TaskId) => void;
   onFocus: (index: number) => void;
   itemRefs: React.MutableRefObject<Map<number, HTMLButtonElement>>;
@@ -342,7 +364,7 @@ function TaskTreeNode({
   visibleTaskIds,
   selectedId,
   focusedIndex,
-  flatVisibleTasks,
+  indexById,
   onSelect,
   onFocus,
   itemRefs,
@@ -351,7 +373,7 @@ function TaskTreeNode({
   const children = (tasksByParent.get(task.id) ?? []).filter((t) =>
     visibleTaskIds.has(t.id)
   );
-  const taskIndex = flatVisibleTasks.findIndex((t) => t.id === task.id);
+  const taskIndex = indexById.get(task.id) ?? -1;
   const isFocused = taskIndex === focusedIndex;
   const isSelected = selectedId === task.id;
 
@@ -377,7 +399,7 @@ function TaskTreeNode({
               visibleTaskIds={visibleTaskIds}
               selectedId={selectedId}
               focusedIndex={focusedIndex}
-              flatVisibleTasks={flatVisibleTasks}
+              indexById={indexById}
               onSelect={onSelect}
               onFocus={onFocus}
               itemRefs={itemRefs}
@@ -423,21 +445,20 @@ function TaskItem({
         itemRefs.current.delete(taskIndex);
       }
     },
-    [itemRefs, taskIndex]
+    [taskIndex]
   );
 
   return (
     <button
       ref={handleRef}
       type="button"
-      role="option"
-      aria-selected={isSelected}
+      tabIndex={isFocused ? 0 : -1}
+      aria-current={isSelected ? "true" : undefined}
       onClick={() => onSelect(task.id)}
       onMouseEnter={() => onFocus(taskIndex)}
       className={`
         w-full text-left p-2 rounded transition-colors motion-reduce:transition-none
         ${isSelected ? "bg-surface-secondary" : "hover:bg-surface-primary"}
-        ${isFocused ? "ring-2 ring-accent ring-offset-1 ring-offset-bg-primary" : ""}
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg-primary
       `}
     >
@@ -458,7 +479,7 @@ function TaskItem({
         </span>
 
         {/* Status badge */}
-        <Badge variant={statusVariant} aria-label={`Status: ${statusLabel}`}>
+        <Badge variant={statusVariant}>
           {statusLabel}
         </Badge>
 
