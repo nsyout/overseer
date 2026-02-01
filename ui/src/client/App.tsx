@@ -1,88 +1,149 @@
-import { useState, useCallback } from "react";
-import { useTasks, useTask } from "./lib/queries.js";
-import { TaskList } from "./components/TaskList.js";
-import { TaskGraph } from "./components/TaskGraph.js";
-import { TaskDetail } from "./components/TaskDetail.js";
-import { KeyboardProvider } from "./lib/keyboard.js";
+import { useEffect, useMemo } from "react";
+import { useTasks } from "./lib/queries.js";
+import { useUIStore, type ViewMode } from "./lib/store.js";
+import { KeyboardProvider, useKeyboardShortcuts } from "./lib/keyboard.js";
 import { KeyboardHelp } from "./components/KeyboardHelp.js";
+import { Header } from "./components/Header.js";
+import { DetailPanel } from "./components/DetailPanel.js";
+import { GraphView, KanbanView, ListView } from "./components/views/index.js";
 import type { TaskId } from "../types.js";
 
 /**
- * Main application layout - 3-panel design:
- * - Left sidebar: Task list with filters
- * - Center: Interactive task dependency graph
- * - Right: Task detail panel
+ * Main application layout - multi-view design:
+ * - Header: Logo, view tabs, status
+ * - Main: Active view (Graph/Kanban/List)
+ * - Bottom: Collapsible detail panel
  */
 export function App() {
-  const [selectedTaskId, setSelectedTaskId] = useState<TaskId | null>(null);
-
-  const { data: tasks, isLoading: tasksLoading, error: tasksError } = useTasks();
-  const { data: selectedTask } = useTask(selectedTaskId);
-
-  const handleTaskDeleted = useCallback(() => {
-    setSelectedTaskId(null);
-  }, []);
-
   return (
     <KeyboardProvider>
-      <KeyboardHelp />
-      <div className="flex h-screen bg-[var(--color-bg-primary)]">
-      {/* Left Sidebar - Task List */}
-      <aside className="w-80 flex-shrink-0 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden flex flex-col">
-        <header className="p-4 border-b border-[var(--color-border)]">
-          <h1 className="text-lg font-semibold font-mono text-[var(--color-accent)]">
-            Overseer
-          </h1>
-          <p className="text-sm text-[var(--color-text-muted)]">Task Viewer</p>
-        </header>
-
-        <div className="flex-1 overflow-hidden">
-          {tasksLoading ? (
-            <div className="p-4 text-[var(--color-text-muted)]">Loading...</div>
-          ) : tasksError ? (
-            <div className="p-4 text-[var(--color-status-blocked)]">
-              Error: {tasksError.message}
-            </div>
-          ) : (
-            <TaskList
-              tasks={tasks ?? []}
-              selectedId={selectedTaskId}
-              onSelect={setSelectedTaskId}
-            />
-          )}
-        </div>
-      </aside>
-
-      {/* Center - Graph View */}
-      <main className="flex-1 flex bg-[var(--color-bg-primary)] min-h-0">
-        {tasksLoading ? (
-          <div className="flex-1 flex items-center justify-center text-[var(--color-text-muted)]">
-            Loading...
-          </div>
-        ) : tasksError ? (
-          <div className="flex-1 flex items-center justify-center text-[var(--color-status-blocked)]">
-            Error: {tasksError.message}
-          </div>
-        ) : (
-          <TaskGraph
-            tasks={tasks ?? []}
-            selectedId={selectedTaskId}
-            onSelect={setSelectedTaskId}
-          />
-        )}
-      </main>
-
-      {/* Right Panel - Task Detail */}
-      <aside className="w-96 flex-shrink-0 border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden flex flex-col">
-        {selectedTask ? (
-          <TaskDetail task={selectedTask} onDeleted={handleTaskDeleted} />
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-[var(--color-text-muted)]">
-            Select a task to view details
-          </div>
-        )}
-      </aside>
-      </div>
+      <AppContent />
     </KeyboardProvider>
   );
+}
+
+function AppContent() {
+  const viewMode = useUIStore((s) => s.viewMode);
+  const setViewMode = useUIStore((s) => s.setViewMode);
+  const selectedTaskId = useUIStore((s) => s.selectedTaskId);
+  const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
+  const toggleDetailPanel = useUIStore((s) => s.toggleDetailPanel);
+  const clearIfMissing = useUIStore((s) => s.clearIfMissing);
+
+  const { data: tasks, isLoading, error, dataUpdatedAt } = useTasks();
+
+  // Clear selection if task no longer exists after refetch
+  const taskIds = useMemo(() => {
+    if (!tasks) return new Set<TaskId>();
+    return new Set(tasks.map((t) => t.id));
+  }, [tasks]);
+
+  useEffect(() => {
+    clearIfMissing(taskIds);
+  }, [taskIds, clearIfMissing]);
+
+  // Register keyboard shortcuts for view switching
+  useKeyboardShortcuts(
+    () => [
+      {
+        key: "1",
+        description: "Switch to Graph view",
+        scope: "global",
+        handler: () => setViewMode("graph"),
+      },
+      {
+        key: "2",
+        description: "Switch to Kanban view",
+        scope: "global",
+        handler: () => setViewMode("kanban"),
+      },
+      {
+        key: "3",
+        description: "Switch to List view",
+        scope: "global",
+        handler: () => setViewMode("list"),
+      },
+      {
+        key: "d",
+        description: "Toggle detail panel",
+        scope: "global",
+        handler: () => toggleDetailPanel(),
+      },
+    ],
+    [setViewMode, toggleDetailPanel]
+  );
+
+  const handleTaskSelect = (id: TaskId) => {
+    setSelectedTaskId(id);
+  };
+
+  // Format last updated timestamp
+  const lastUpdated = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toISOString()
+    : undefined;
+
+  return (
+    <>
+      <KeyboardHelp />
+      <div className="flex flex-col h-screen bg-bg-primary">
+        {/* Header */}
+        <Header lastUpdated={lastUpdated} />
+
+        {/* Main content area */}
+        <main className="flex-1 flex flex-col min-h-0">
+          {/* View container */}
+          <div className="flex-1 min-h-0 flex">
+            {isLoading ? (
+              <div className="flex-1 flex items-center justify-center text-text-muted">
+                Loading...
+              </div>
+            ) : error ? (
+              <div className="flex-1 flex items-center justify-center text-status-blocked">
+                Error: {error.message}
+              </div>
+            ) : (
+              <ViewContainer
+                viewMode={viewMode}
+                tasks={tasks ?? []}
+                selectedId={selectedTaskId}
+                onSelect={handleTaskSelect}
+              />
+            )}
+          </div>
+
+          {/* Detail panel */}
+          <DetailPanel />
+        </main>
+      </div>
+    </>
+  );
+}
+
+interface ViewContainerProps {
+  viewMode: ViewMode;
+  tasks: import("../types.js").Task[];
+  selectedId: TaskId | null;
+  onSelect: (id: TaskId) => void;
+}
+
+function ViewContainer({
+  viewMode,
+  tasks,
+  selectedId,
+  onSelect,
+}: ViewContainerProps) {
+  switch (viewMode) {
+    case "graph":
+      return (
+        <GraphView tasks={tasks} selectedId={selectedId} onSelect={onSelect} />
+      );
+    case "kanban":
+      return (
+        <KanbanView tasks={tasks} selectedId={selectedId} onSelect={onSelect} />
+      );
+    case "list":
+      return (
+        <ListView tasks={tasks} selectedId={selectedId} onSelect={onSelect} />
+      );
+  }
 }

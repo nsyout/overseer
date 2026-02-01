@@ -27,7 +27,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.4.0",
-    "tailwind-variants": "^3.2.2"
+    "tailwind-variants": "^3.2.2",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.6",
