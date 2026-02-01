@@ -46,6 +46,7 @@ fn row_to_task(row: &Row) -> rusqlite::Result<Task> {
         depth: None,
         blocked_by: Vec::new(),
         blocks: Vec::new(),
+        effectively_blocked: false, // Computed by TaskService
     })
 }
 
@@ -114,20 +115,64 @@ pub fn get_blocking(conn: &Connection, blocker_id: &TaskId) -> Result<Vec<TaskId
 }
 
 pub fn list_tasks(conn: &Connection, filter: &ListTasksFilter) -> Result<Vec<Task>> {
-    let mut sql = String::from("SELECT * FROM tasks WHERE 1=1");
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-    if let Some(ref parent_id) = filter.parent_id {
-        sql.push_str(" AND parent_id = ?");
-        params_vec.push(Box::new(parent_id.clone()));
-    }
+    // Use recursive CTE to compute depth if filtering by depth
+    let sql = if filter.depth.is_some() {
+        let mut sql = String::from(
+            r#"
+            WITH RECURSIVE task_depths AS (
+                SELECT id, parent_id, description, context, result, priority, completed,
+                       completed_at, created_at, updated_at, started_at, commit_sha, bookmark, start_commit,
+                       0 as depth
+                FROM tasks WHERE parent_id IS NULL
+                UNION ALL
+                SELECT t.id, t.parent_id, t.description, t.context, t.result, t.priority, t.completed,
+                       t.completed_at, t.created_at, t.updated_at, t.started_at, t.commit_sha, t.bookmark, t.start_commit,
+                       td.depth + 1
+                FROM tasks t
+                INNER JOIN task_depths td ON t.parent_id = td.id
+            )
+            SELECT id, parent_id, description, context, result, priority, completed,
+                   completed_at, created_at, updated_at, started_at, commit_sha, bookmark, start_commit
+            FROM task_depths WHERE 1=1
+            "#,
+        );
 
-    if let Some(completed) = filter.completed {
-        sql.push_str(" AND completed = ?");
-        params_vec.push(Box::new(if completed { 1 } else { 0 }));
-    }
+        if let Some(ref parent_id) = filter.parent_id {
+            sql.push_str(" AND parent_id = ?");
+            params_vec.push(Box::new(parent_id.clone()));
+        }
 
-    sql.push_str(" ORDER BY priority ASC, created_at ASC");
+        if let Some(completed) = filter.completed {
+            sql.push_str(" AND completed = ?");
+            params_vec.push(Box::new(if completed { 1 } else { 0 }));
+        }
+
+        if let Some(depth) = filter.depth {
+            sql.push_str(" AND depth = ?");
+            params_vec.push(Box::new(depth));
+        }
+
+        sql.push_str(" ORDER BY priority ASC, created_at ASC");
+        sql
+    } else {
+        // Original simple query when not filtering by depth
+        let mut sql = String::from("SELECT * FROM tasks WHERE 1=1");
+
+        if let Some(ref parent_id) = filter.parent_id {
+            sql.push_str(" AND parent_id = ?");
+            params_vec.push(Box::new(parent_id.clone()));
+        }
+
+        if let Some(completed) = filter.completed {
+            sql.push_str(" AND completed = ?");
+            params_vec.push(Box::new(if completed { 1 } else { 0 }));
+        }
+
+        sql.push_str(" ORDER BY priority ASC, created_at ASC");
+        sql
+    };
 
     let mut stmt = conn.prepare(&sql)?;
     let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();

@@ -80,6 +80,8 @@ export interface Task {
   blocks?: TaskId[];
   bookmark?: string;
   startCommit?: string;
+  /** Computed: true if task or any ancestor has incomplete blockers */
+  effectivelyBlocked: boolean;
 }
 
 /**

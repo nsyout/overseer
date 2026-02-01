@@ -176,6 +176,7 @@ fn test_list_all_tasks() {
             parent_id: None,
             ready: false,
             completed: None,
+            depth: None,
         })
         .unwrap();
 

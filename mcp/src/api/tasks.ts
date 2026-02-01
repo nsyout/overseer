@@ -2,12 +2,18 @@
  * Tasks API - typed wrapper around os task commands
  */
 import { callCli } from "../cli.js";
-import type { Task, TaskWithContext } from "../types.js";
+import type { Depth, Task, TaskWithContext } from "../types.js";
 
 export interface TaskFilter {
   parentId?: string;
   ready?: boolean;
   completed?: boolean;
+  /**
+   * Filter by depth: 0=milestones, 1=tasks, 2=subtasks.
+   * Maps to CLI: --milestones | --tasks | --subtasks
+   * Mutually exclusive with parentId.
+   */
+  depth?: Depth;
 }
 
 export interface CreateTaskInput {
@@ -34,10 +40,23 @@ export const tasks = {
    * Returns tasks without context chain or inherited learnings.
    */
   async list(filter?: TaskFilter): Promise<Task[]> {
+    if (filter?.parentId !== undefined && filter?.depth !== undefined) {
+      throw new Error(
+        "parentId and depth are mutually exclusive - use parentId alone; depth is implied by parent type"
+      );
+    }
     const args = ["task", "list"];
     if (filter?.parentId) args.push("--parent", filter.parentId);
     if (filter?.ready) args.push("--ready");
     if (filter?.completed) args.push("--completed");
+    if (filter?.depth !== undefined) {
+      const depthFlags: Record<Depth, string> = {
+        0: "--milestones",
+        1: "--tasks",
+        2: "--subtasks",
+      };
+      args.push(depthFlags[filter.depth]);
+    }
     return (await callCli(args)) as Task[];
   },
 

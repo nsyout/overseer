@@ -60,6 +60,7 @@ impl<'a> TaskService<'a> {
 
         let mut task = task_repo::create_task(self.conn, input)?;
         task.depth = Some(self.get_depth(&task.id)?);
+        task.effectively_blocked = self.is_effectively_blocked(&task)?;
         Ok(task)
     }
 
@@ -67,6 +68,7 @@ impl<'a> TaskService<'a> {
         let mut task =
             task_repo::get_task(self.conn, id)?.ok_or_else(|| OsError::TaskNotFound(id.clone()))?;
         task.depth = Some(self.get_depth(id)?);
+        task.effectively_blocked = self.is_effectively_blocked(&task)?;
         task.context_chain = Some(self.assemble_context_chain(&task)?);
         task.learnings = Some(self.assemble_inherited_learnings(&task)?);
         Ok(task)
@@ -76,6 +78,12 @@ impl<'a> TaskService<'a> {
         let mut tasks = task_repo::list_tasks(self.conn, filter)?;
         for task in &mut tasks {
             task.depth = Some(self.get_depth(&task.id)?);
+            task.effectively_blocked = self.is_effectively_blocked(task)?;
+        }
+        // Post-filter by effective readiness (ancestor-aware) when --ready requested
+        // DB layer does direct-blocker pre-filter; this catches ancestor-blocked tasks
+        if filter.ready {
+            tasks.retain(|t| !t.completed && !t.effectively_blocked);
         }
         Ok(tasks)
     }
@@ -131,6 +139,7 @@ impl<'a> TaskService<'a> {
 
         let mut task = task_repo::update_task(self.conn, id, input)?;
         task.depth = Some(self.get_depth(id)?);
+        task.effectively_blocked = self.is_effectively_blocked(&task)?;
         Ok(task)
     }
 
@@ -156,6 +165,7 @@ impl<'a> TaskService<'a> {
         }
         let mut task = task_repo::start_task(self.conn, id)?;
         task.depth = Some(self.get_depth(id)?);
+        task.effectively_blocked = self.is_effectively_blocked(&task)?;
         Ok(task)
     }
 
@@ -199,6 +209,7 @@ impl<'a> TaskService<'a> {
         }
 
         task.depth = Some(self.get_depth(id)?);
+        task.effectively_blocked = self.is_effectively_blocked(&task)?;
         Ok(task)
     }
 
@@ -215,6 +226,7 @@ impl<'a> TaskService<'a> {
         }
         let mut task = task_repo::reopen_task(self.conn, id)?;
         task.depth = Some(self.get_depth(id)?);
+        task.effectively_blocked = self.is_effectively_blocked(&task)?;
         Ok(task)
     }
 

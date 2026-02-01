@@ -29,7 +29,7 @@ fn validate_ulid(s: &str) -> Result<(), IdParseError> {
 
 // ============ TaskId ============
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct TaskId(String);
 

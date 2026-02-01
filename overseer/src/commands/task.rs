@@ -60,8 +60,9 @@ pub struct CreateArgs {
 }
 
 #[derive(Args)]
+#[command(group = clap::ArgGroup::new("depth_filter").multiple(false))]
 pub struct ListArgs {
-    #[arg(long, value_parser = parse_task_id)]
+    #[arg(long, value_parser = parse_task_id, conflicts_with_all = ["milestones", "tasks", "subtasks"])]
     pub parent: Option<TaskId>,
 
     #[arg(long)]
@@ -69,6 +70,22 @@ pub struct ListArgs {
 
     #[arg(long)]
     pub completed: bool,
+
+    /// Show only milestones (depth 0)
+    #[arg(short = 'm', long, group = "depth_filter")]
+    pub milestones: bool,
+
+    /// Show only tasks (depth 1)
+    #[arg(short = 't', long, group = "depth_filter")]
+    pub tasks: bool,
+
+    /// Show only subtasks (depth 2)
+    #[arg(short = 's', long, group = "depth_filter")]
+    pub subtasks: bool,
+
+    /// Show flat list instead of tree view (default). Human output only; JSON always returns flat array.
+    #[arg(long)]
+    pub flat: bool,
 }
 
 #[derive(Args)]
@@ -175,10 +192,21 @@ pub fn handle(conn: &Connection, cmd: TaskCommand) -> Result<TaskResult> {
         }
 
         TaskCommand::List(args) => {
+            // Determine depth from type filter flags (pure booleans)
+            let depth = if args.milestones {
+                Some(0)
+            } else if args.tasks {
+                Some(1)
+            } else if args.subtasks {
+                Some(2)
+            } else {
+                None
+            };
             let filter = ListTasksFilter {
                 parent_id: args.parent,
                 ready: args.ready,
                 completed: if args.completed { Some(true) } else { None },
+                depth,
             };
             Ok(TaskResult::Many(svc.list(&filter)?))
         }
@@ -245,9 +273,11 @@ pub fn handle_workflow(
     match cmd {
         TaskCommand::Start { id } => Ok(TaskResult::One(workflow.start_follow_blockers(&id)?)),
 
-        TaskCommand::Complete(args) => Ok(TaskResult::One(
-            workflow.complete_with_learnings(&args.id, args.result.as_deref(), &args.learnings)?,
-        )),
+        TaskCommand::Complete(args) => Ok(TaskResult::One(workflow.complete_with_learnings(
+            &args.id,
+            args.result.as_deref(),
+            &args.learnings,
+        )?)),
 
         TaskCommand::Delete { id } => {
             svc.delete(&id)?;
@@ -271,6 +301,7 @@ fn build_tree(conn: &Connection, root_id: Option<&TaskId>) -> Result<TaskTree> {
                 parent_id: None,
                 ready: false,
                 completed: None,
+                depth: None,
             };
             let all_tasks = svc.list(&filter)?;
             let mut milestones: Vec<Task> = all_tasks
@@ -305,6 +336,7 @@ fn build_tree_recursive(conn: &Connection, task: Task) -> Result<TaskTree> {
         parent_id: Some(task.id.clone()),
         ready: false,
         completed: None,
+        depth: None,
     };
 
     let children_tasks = svc.list(&filter)?;
@@ -333,6 +365,7 @@ fn search_tasks(conn: &Connection, query: &str) -> Result<Vec<Task>> {
         parent_id: None,
         ready: false,
         completed: None,
+        depth: None,
     })?;
 
     let query_lower = query.to_lowercase();

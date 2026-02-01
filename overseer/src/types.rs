@@ -59,6 +59,9 @@ pub struct Task {
     pub blocked_by: Vec<TaskId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blocks: Vec<TaskId>,
+    /// Computed field: true if task or any ancestor has incomplete blockers
+    #[serde(default)]
+    pub effectively_blocked: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -83,4 +86,6 @@ pub struct ListTasksFilter {
     pub parent_id: Option<TaskId>,
     pub ready: bool,
     pub completed: Option<bool>,
+    /// Filter by task depth: 0=milestones, 1=tasks, 2=subtasks
+    pub depth: Option<i32>,
 }
