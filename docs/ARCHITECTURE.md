@@ -232,7 +232,7 @@ Single `execute` tool. VM sandbox exposes:
 
 ```javascript
 {
-  tasks: { create, get, list, update, start, complete, reopen, delete, block, unblock, nextReady },
+  tasks: { create, get, list, update, start, complete, reopen, delete, block, unblock, nextReady, tree, search, progress },
   learnings: { list },
   console, setTimeout, Promise
 }
@@ -304,5 +304,4 @@ Rust JSON output is source of truth. TypeScript mirrors it.
 
 - [CLI Reference](CLI.md) - Complete command documentation
 - [MCP Guide](MCP.md) - Agent usage patterns
-- [Task System](TASKS.md) - Task model deep dive
 - [UI Knowledge Base](../ui/AGENTS.md) - UI patterns and conventions

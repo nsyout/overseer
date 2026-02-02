@@ -105,6 +105,24 @@ export interface Learning {
 }
 
 /**
+ * Recursive task tree node (from os task tree)
+ */
+export interface TaskTree {
+  task: Task;
+  children: TaskTree[];
+}
+
+/**
+ * Progress summary (aggregate counts)
+ */
+export interface TaskProgress {
+  total: number;
+  completed: number;
+  ready: number;     // !completed && !effectivelyBlocked
+  blocked: number;   // !completed && effectivelyBlocked
+}
+
+/**
  * CLI command errors
  */
 export class CliError extends Error {

@@ -16,8 +16,9 @@ Traditional MCP tools require one tool call per operation. Codemode lets agents 
 **Codemode (single execution):**
 ```javascript
 const task = await tasks.create({...});
-await learnings.add(task.id, "...");
 await tasks.start(task.id);
+// ... do work ...
+await tasks.complete(task.id, { result: "Done", learnings: ["Key insight"] });
 return task;
 ```
 
@@ -57,7 +58,25 @@ interface Task {
   blocks?: string[];            // Tasks this blocks (omitted if empty)
   bookmark?: string;            // VCS bookmark name (if started)
   startCommit?: string;         // Commit SHA at start
+  effectivelyBlocked: boolean;  // True if task OR ancestor has incomplete blockers
 }
+
+// TaskTree (from tree)
+interface TaskTree {
+  task: Task;
+  children: TaskTree[];
+}
+
+// TaskProgress (from progress)
+interface TaskProgress {
+  total: number;
+  completed: number;
+  ready: number;     // !completed && !effectivelyBlocked
+  blocked: number;   // !completed && effectivelyBlocked
+}
+
+// TaskType alias for depth filter
+type TaskType = "milestone" | "task" | "subtask";
 
 // TaskWithContext (from get/nextReady)
 // Extends Task with context chain and inherited learnings
@@ -94,6 +113,8 @@ tasks.list(filter?: {
   parentId?: string;
   ready?: boolean;      // No blockers, not completed
   completed?: boolean;
+  depth?: 0 | 1 | 2;    // 0=milestones, 1=tasks, 2=subtasks
+  type?: TaskType;      // Alias: "milestone"|"task"|"subtask" (mutually exclusive with depth)
 }): Promise<Task[]>
 
 // Get task with context
@@ -132,6 +153,16 @@ tasks.unblock(taskId: string, blockerId: string): Promise<void>
 // Queries - DFS to find deepest unblocked incomplete leaf
 // Returns TaskWithContext (with context chain + learnings) or null
 tasks.nextReady(milestoneId?: string): Promise<TaskWithContext | null>
+
+// Tree - returns nested task structure
+// If rootId provided, returns single tree; otherwise returns array of all milestone trees
+tasks.tree(rootId?: string): Promise<TaskTree | TaskTree[]>
+
+// Search - find tasks by description/context/result (case-insensitive)
+tasks.search(query: string): Promise<Task[]>
+
+// Progress - aggregate counts for a milestone or all tasks
+tasks.progress(rootId?: string): Promise<TaskProgress>
 ```
 
 ### `learnings` API
@@ -225,13 +256,8 @@ console.log("Parent learnings:", subtask.learnings.parent);
 VCS operations are integrated into task lifecycle - no manual VCS API calls needed:
 
 ```javascript
-// Start task - VCS required, creates bookmark
-await tasks.start(task.id);
-// -> Creates bookmark named after task ID
-// -> Records start commit
-
 // Complete task - VCS required, commits changes
-await tasks.complete(task.id, "Login endpoint complete");
+await tasks.complete(task.id, { result: "Login endpoint complete" });
 // -> Commits changes (NothingToCommit treated as success)
 // -> Stores commit SHA on task
 ```
@@ -264,7 +290,7 @@ const completed = [];
 for (const task of readyTasks) {
   if (task.description.includes("test")) {
     await tasks.start(task.id);
-    await tasks.complete(task.id, "Tests passing");
+    await tasks.complete(task.id, { result: "Tests passing" });
     completed.push(task);
   }
 }
@@ -272,29 +298,30 @@ for (const task of readyTasks) {
 return { completed: completed.length, tasks: completed };
 ```
 
-### Search and Filter
+### Search, Filter, and Progress
 
 ```javascript
 // Get all completed tasks
 const done = await tasks.list({ completed: true });
 
-// Get pending children of milestone
-const milestone = await tasks.get(milestoneId);
-const pending = await tasks.list({
-  parentId: milestone.id,
-  completed: false
-});
+// Get only milestones (two equivalent ways)
+const milestones = await tasks.list({ depth: 0 });
+const milestones2 = await tasks.list({ type: "milestone" });
 
-// Calculate progress
-const total = await tasks.list({ parentId: milestone.id });
-const progress = (done.length / total.length) * 100;
+// Search tasks by text
+const authTasks = await tasks.search("authentication");
 
-return {
-  milestone: milestone.description,
-  progress: `${progress.toFixed(0)}%`,
-  pending: pending.length,
-  done: done.length
-};
+// Get progress summary (much more efficient than counting manually)
+const progress = await tasks.progress(milestoneId);
+// -> { total: 10, completed: 3, ready: 5, blocked: 2 }
+
+// Get task tree structure
+const tree = await tasks.tree(milestoneId);
+// -> { task: Task, children: TaskTree[] }
+
+// Get all milestone trees
+const allTrees = await tasks.tree();
+// -> TaskTree[] (one per milestone)
 ```
 
 ## Best Practices
@@ -410,10 +437,10 @@ return task;
 
 ```javascript
 // Complete task - VCS required, commits changes
-const completed = await tasks.complete(
-  taskId,
-  "Feature X implemented and tested"
-);
+const completed = await tasks.complete(taskId, {
+  result: "Feature X implemented and tested",
+  learnings: ["Key discovery during implementation"]
+});
 
 // completed.commitSha contains the commit SHA
 return { task: completed, commit: completed.commitSha };

@@ -140,6 +140,8 @@ fn run(command: &Command, db_path: &PathBuf) -> error::Result<String> {
                 TaskResult::Many(ts) => Ok(serde_json::to_string_pretty(&ts)?),
                 TaskResult::Deleted => Ok(serde_json::json!({ "deleted": true }).to_string()),
                 TaskResult::Tree(tree) => Ok(serde_json::to_string_pretty(&tree)?),
+                TaskResult::Trees(trees) => Ok(serde_json::to_string_pretty(&trees)?),
+                TaskResult::Progress(progress) => Ok(serde_json::to_string_pretty(&progress)?),
             }
         }
         Command::Learning(cmd) => {
@@ -235,6 +237,9 @@ fn clone_task_cmd(cmd: &TaskCommand) -> TaskCommand {
         }),
         TaskCommand::Search(args) => TaskCommand::Search(task::SearchArgs {
             query: args.query.clone(),
+        }),
+        TaskCommand::Progress(args) => TaskCommand::Progress(task::ProgressArgs {
+            id: args.id.clone(),
         }),
     }
 }

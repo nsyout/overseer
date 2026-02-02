@@ -6,7 +6,7 @@ Command handlers for `os` CLI - wire clap to core services.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `task.rs` | 680 | Task CRUD, lifecycle, queries |
+| `task.rs` | ~770 | Task CRUD, lifecycle, queries (tree, search, progress) |
 | `learning.rs` | - | Learning CRUD |
 | `vcs.rs` | - | VCS operations (detect, status, log, diff, commit) |
 | `data.rs` | - | Import/export tasks + learnings (JSON) |
@@ -47,9 +47,12 @@ fn clone_task_cmd(cmd: &TaskCommand) -> TaskCommand {
 pub enum TaskResult {
     One(Task),
     OneWithContext(TaskWithContext),
+    MaybeOneWithContext(Option<TaskWithContext>),
     Many(Vec<Task>),
     Deleted,
     Tree(TaskTree),
+    Trees(Vec<TaskTree>),
+    Progress(TaskProgressResult),
 }
 ```
 
@@ -62,5 +65,6 @@ pub enum TaskResult {
 
 ## KEY FUNCTIONS (task.rs)
 
-- `build_tree()` / `build_tree_recursive()`: Hierarchy construction
+- `build_tree_for_task()` / `build_all_trees()` / `build_tree_recursive()`: Hierarchy construction
 - `search_tasks()`: Substring matching across description/context/result
+- `calculate_progress()` / `get_descendants()`: Progress aggregate counts

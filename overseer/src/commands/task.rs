@@ -40,6 +40,7 @@ pub enum TaskCommand {
     NextReady(NextReadyArgs),
     Tree(TreeArgs),
     Search(SearchArgs),
+    Progress(ProgressArgs),
 }
 
 #[derive(Args)]
@@ -155,6 +156,13 @@ pub struct SearchArgs {
     pub query: String,
 }
 
+#[derive(Args)]
+pub struct ProgressArgs {
+    /// Root task ID (milestone) to calculate progress for. If omitted, calculates for all tasks.
+    #[arg(value_parser = parse_task_id)]
+    pub id: Option<TaskId>,
+}
+
 pub enum TaskResult {
     One(Task),
     OneWithContext(TaskWithContext),
@@ -162,6 +170,16 @@ pub enum TaskResult {
     Many(Vec<Task>),
     Deleted,
     Tree(TaskTree),
+    Trees(Vec<TaskTree>),
+    Progress(TaskProgressResult),
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct TaskProgressResult {
+    pub total: usize,
+    pub completed: usize,
+    pub ready: usize,
+    pub blocked: usize,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -245,14 +263,25 @@ pub fn handle(conn: &Connection, cmd: TaskCommand) -> Result<TaskResult> {
             }
         }
 
-        TaskCommand::Tree(args) => {
-            let tree = build_tree(conn, args.id.as_ref())?;
-            Ok(TaskResult::Tree(tree))
-        }
+        TaskCommand::Tree(args) => match args.id {
+            Some(id) => {
+                let tree = build_tree_for_task(conn, &id)?;
+                Ok(TaskResult::Tree(tree))
+            }
+            None => {
+                let trees = build_all_trees(conn)?;
+                Ok(TaskResult::Trees(trees))
+            }
+        },
 
         TaskCommand::Search(args) => {
             let tasks = search_tasks(conn, &args.query)?;
             Ok(TaskResult::Many(tasks))
+        }
+
+        TaskCommand::Progress(args) => {
+            let progress = calculate_progress(conn, args.id.as_ref())?;
+            Ok(TaskResult::Progress(progress))
         }
 
         // Workflow commands require VCS - caller must use handle_workflow
@@ -313,44 +342,37 @@ pub fn handle_delete(
     Ok(TaskResult::Deleted)
 }
 
-fn build_tree(conn: &Connection, root_id: Option<&TaskId>) -> Result<TaskTree> {
+fn build_tree_for_task(conn: &Connection, root_id: &TaskId) -> Result<TaskTree> {
+    let svc = TaskService::new(conn);
+    let root_task = svc.get(root_id)?;
+    build_tree_recursive(conn, root_task)
+}
+
+fn build_all_trees(conn: &Connection) -> Result<Vec<TaskTree>> {
     let svc = TaskService::new(conn);
 
-    let root_task = match root_id {
-        Some(id) => svc.get(id)?,
-        None => {
-            // Find top-level tasks (depth = 0) by filtering all tasks
-            let filter = ListTasksFilter {
-                parent_id: None,
-                ready: false,
-                completed: None,
-                depth: None,
-            };
-            let all_tasks = svc.list(&filter)?;
-            let mut milestones: Vec<Task> = all_tasks
-                .into_iter()
-                .filter(|t| t.depth == Some(0))
-                .collect();
-
-            milestones.sort_by(|a, b| {
-                b.priority
-                    .cmp(&a.priority)
-                    .then_with(|| a.created_at.cmp(&b.created_at))
-            });
-
-            let first = milestones.into_iter().next();
-            match first {
-                Some(t) => t,
-                None => {
-                    return Err(crate::error::OsError::TaskNotFound(
-                        TaskId::new(), // dummy ID for error message
-                    ));
-                }
-            }
-        }
+    // Find all milestones (depth = 0)
+    let filter = ListTasksFilter {
+        parent_id: None,
+        ready: false,
+        completed: None,
+        depth: Some(0),
     };
+    let mut milestones = svc.list(&filter)?;
 
-    build_tree_recursive(conn, root_task)
+    // Sort by priority desc, then created_at asc
+    milestones.sort_by(|a, b| {
+        b.priority
+            .cmp(&a.priority)
+            .then_with(|| a.created_at.cmp(&b.created_at))
+    });
+
+    // Build tree for each milestone
+    let mut trees = Vec::new();
+    for milestone in milestones {
+        trees.push(build_tree_recursive(conn, milestone)?);
+    }
+    Ok(trees)
 }
 
 fn build_tree_recursive(conn: &Connection, task: Task) -> Result<TaskTree> {
@@ -378,6 +400,70 @@ fn build_tree_recursive(conn: &Connection, task: Task) -> Result<TaskTree> {
     });
 
     Ok(TaskTree { task, children })
+}
+
+fn calculate_progress(conn: &Connection, root_id: Option<&TaskId>) -> Result<TaskProgressResult> {
+    let svc = TaskService::new(conn);
+
+    // Get all tasks, optionally filtered by descendant of root
+    let tasks = match root_id {
+        Some(id) => {
+            // Get all descendants of this task
+            get_descendants(conn, id)?
+        }
+        None => {
+            // Get all tasks
+            let filter = ListTasksFilter {
+                parent_id: None,
+                ready: false,
+                completed: None,
+                depth: None,
+            };
+            svc.list(&filter)?
+        }
+    };
+
+    let total = tasks.len();
+    let completed = tasks.iter().filter(|t| t.completed).count();
+    let ready = tasks
+        .iter()
+        .filter(|t| !t.completed && !t.effectively_blocked)
+        .count();
+    let blocked = tasks
+        .iter()
+        .filter(|t| !t.completed && t.effectively_blocked)
+        .count();
+
+    Ok(TaskProgressResult {
+        total,
+        completed,
+        ready,
+        blocked,
+    })
+}
+
+fn get_descendants(conn: &Connection, root_id: &TaskId) -> Result<Vec<Task>> {
+    let svc = TaskService::new(conn);
+    let root = svc.get(root_id)?;
+
+    let mut result = vec![root];
+    let mut queue = vec![root_id.clone()];
+
+    while let Some(parent_id) = queue.pop() {
+        let children = svc.list(&ListTasksFilter {
+            parent_id: Some(parent_id),
+            ready: false,
+            completed: None,
+            depth: None,
+        })?;
+
+        for child in children {
+            queue.push(child.id.clone());
+            result.push(child);
+        }
+    }
+
+    Ok(result)
 }
 
 fn search_tasks(conn: &Connection, query: &str) -> Result<Vec<Task>> {

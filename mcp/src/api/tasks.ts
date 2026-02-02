@@ -7,8 +7,22 @@ import {
   decodeTasks,
   decodeTaskWithContext,
   decodeTaskWithContextOrNull,
+  decodeTaskTree,
+  decodeTaskTrees,
+  decodeTaskProgress,
 } from "../decoder.js";
-import type { Depth, Task, TaskWithContext } from "../types.js";
+import type { Depth, Task, TaskWithContext, TaskTree, TaskProgress } from "../types.js";
+
+/**
+ * Task type aliases for depth (ergonomic sugar)
+ */
+export type TaskType = "milestone" | "task" | "subtask";
+
+const TYPE_TO_DEPTH: Record<TaskType, Depth> = {
+  milestone: 0,
+  task: 1,
+  subtask: 2,
+};
 
 export interface TaskFilter {
   parentId?: string;
@@ -17,9 +31,15 @@ export interface TaskFilter {
   /**
    * Filter by depth: 0=milestones, 1=tasks, 2=subtasks.
    * Maps to CLI: --milestones | --tasks | --subtasks
-   * Mutually exclusive with parentId.
+   * Mutually exclusive with parentId and type.
    */
   depth?: Depth;
+  /**
+   * Filter by type: "milestone" | "task" | "subtask".
+   * Alias for depth (milestone=0, task=1, subtask=2).
+   * Mutually exclusive with parentId and depth.
+   */
+  type?: TaskType;
 }
 
 export interface CreateTaskInput {
@@ -46,22 +66,33 @@ export const tasks = {
    * Returns tasks without context chain or inherited learnings.
    */
   async list(filter?: TaskFilter): Promise<Task[]> {
-    if (filter?.parentId !== undefined && filter?.depth !== undefined) {
+    // Resolve type to depth if provided
+    const effectiveDepth = filter?.type !== undefined 
+      ? TYPE_TO_DEPTH[filter.type] 
+      : filter?.depth;
+
+    if (filter?.parentId !== undefined && effectiveDepth !== undefined) {
       throw new Error(
-        "parentId and depth are mutually exclusive - use parentId alone; depth is implied by parent type"
+        "parentId and depth/type are mutually exclusive - use parentId alone; depth is implied by parent type"
       );
     }
+    if (filter?.depth !== undefined && filter?.type !== undefined) {
+      throw new Error(
+        "depth and type are mutually exclusive - use one or the other"
+      );
+    }
+
     const args = ["task", "list"];
     if (filter?.parentId) args.push("--parent", filter.parentId);
     if (filter?.ready) args.push("--ready");
     if (filter?.completed) args.push("--completed");
-    if (filter?.depth !== undefined) {
+    if (effectiveDepth !== undefined) {
       const depthFlags: Record<Depth, string> = {
         0: "--milestones",
         1: "--tasks",
         2: "--subtasks",
       };
-      args.push(depthFlags[filter.depth]);
+      args.push(depthFlags[effectiveDepth]);
     }
     return decodeTasks(await callCli(args)).unwrap("tasks.list");
   },
@@ -172,5 +203,39 @@ export const tasks = {
     const args = ["task", "next-ready"];
     if (milestoneId) args.push("--milestone", milestoneId);
     return decodeTaskWithContextOrNull(await callCli(args)).unwrap("tasks.nextReady");
+  },
+
+  /**
+   * Get task tree structure.
+   * If rootId provided, returns single tree rooted at that task.
+   * If no rootId, returns array of all milestone trees.
+   *
+   * **Warning:** Large trees may hit 50k output limit. Prefer scoping to specific milestone.
+   */
+  async tree(rootId?: string): Promise<TaskTree | TaskTree[]> {
+    const args = ["task", "tree"];
+    if (rootId) {
+      args.push(rootId);
+      return decodeTaskTree(await callCli(args)).unwrap("tasks.tree");
+    }
+    return decodeTaskTrees(await callCli(args)).unwrap("tasks.tree");
+  },
+
+  /**
+   * Search tasks by description.
+   * Returns tasks matching the query (case-insensitive substring match).
+   */
+  async search(query: string): Promise<Task[]> {
+    return decodeTasks(await callCli(["task", "search", query])).unwrap("tasks.search");
+  },
+
+  /**
+   * Get progress summary for a milestone or all tasks.
+   * Returns aggregate counts: { total, completed, ready, blocked }
+   */
+  async progress(rootId?: string): Promise<TaskProgress> {
+    const args = ["task", "progress"];
+    if (rootId) args.push(rootId);
+    return decodeTaskProgress(await callCli(args)).unwrap("tasks.progress");
   },
 };

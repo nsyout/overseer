@@ -98,7 +98,7 @@ return { milestone, login };
 ```javascript
 tasks.create({ description, context?, parentId?, priority?, blockedBy? })
 tasks.get(id)           // Returns TaskWithContext
-tasks.list({ parentId?, ready?, completed?, depth? })
+tasks.list({ parentId?, ready?, completed?, depth?, type? })  // type: "milestone"|"task"|"subtask"
 tasks.update(id, { description?, context?, priority?, parentId? })
 tasks.start(id)
 tasks.complete(id, { result?, learnings? })  // Learnings bubble to immediate parent
@@ -107,6 +107,9 @@ tasks.delete(id)
 tasks.block(taskId, blockerId)
 tasks.unblock(taskId, blockerId)
 tasks.nextReady(milestoneId?)
+tasks.tree(rootId?)     // Returns TaskTree or TaskTree[] (all milestones if no ID)
+tasks.search(query)     // Search by description/context/result
+tasks.progress(rootId?) // Returns { total, completed, ready, blocked }
 ```
 
 ### learnings
@@ -155,8 +158,9 @@ os task delete <id>
 os task block <id> --by <blocker-id>
 os task unblock <id> --by <blocker-id>
 os task next-ready [--milestone ID]
-os task tree [ID]
+os task tree [ID]           # No ID = all milestone trees
 os task search "query"
+os task progress [ID]       # Aggregate counts: total, completed, ready, blocked
 
 # Learnings (added via task complete --learning)
 os learning list <task-id>

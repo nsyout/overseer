@@ -15,6 +15,8 @@ import {
   type Depth,
   type TaskContext,
   type InheritedLearnings,
+  type TaskTree,
+  type TaskProgress,
 } from "./types.js";
 
 /**
@@ -363,4 +365,89 @@ export function decodeTaskWithContextOrNull(
 ): Result<TaskWithContext | null, DecodeError> {
   if (v === null) return Result.ok(null);
   return decodeTaskWithContext(v);
+}
+
+/**
+ * Decode TaskTree from unknown JSON (recursive)
+ */
+export function decodeTaskTree(v: unknown): Result<TaskTree, DecodeError> {
+  if (!isObject(v)) {
+    return Result.err(new DecodeError({ message: "TaskTree must be object" }));
+  }
+
+  const { task, children } = v;
+
+  const taskResult = decodeTask(task);
+  if (taskResult.isErr()) {
+    return Result.err(new DecodeError({ message: taskResult.error.message, path: "task" }));
+  }
+
+  if (!Array.isArray(children)) {
+    return Result.err(new DecodeError({ message: "TaskTree.children must be array" }));
+  }
+
+  const decodedChildren: TaskTree[] = [];
+  for (let i = 0; i < children.length; i++) {
+    const childResult = decodeTaskTree(children[i]);
+    if (childResult.isErr()) {
+      return Result.err(new DecodeError({ 
+        message: childResult.error.message, 
+        path: `children[${i}]` 
+      }));
+    }
+    decodedChildren.push(childResult.value);
+  }
+
+  return Result.ok({
+    task: taskResult.value,
+    children: decodedChildren,
+  });
+}
+
+/**
+ * Decode TaskTree array (for tree without root ID)
+ */
+export function decodeTaskTrees(v: unknown): Result<TaskTree[], DecodeError> {
+  if (!Array.isArray(v)) {
+    return Result.err(new DecodeError({ message: "TaskTrees must be array" }));
+  }
+
+  const trees: TaskTree[] = [];
+  for (let i = 0; i < v.length; i++) {
+    const result = decodeTaskTree(v[i]);
+    if (result.isErr()) {
+      return Result.err(new DecodeError({ 
+        message: result.error.message, 
+        path: `trees[${i}]` 
+      }));
+    }
+    trees.push(result.value);
+  }
+  return Result.ok(trees);
+}
+
+/**
+ * Decode TaskProgress from unknown JSON
+ */
+export function decodeTaskProgress(v: unknown): Result<TaskProgress, DecodeError> {
+  if (!isObject(v)) {
+    return Result.err(new DecodeError({ message: "TaskProgress must be object" }));
+  }
+
+  const { total, completed, ready, blocked } = v;
+
+  if (!isNumber(total) || !Number.isInteger(total) || total < 0) {
+    return Result.err(new DecodeError({ message: "TaskProgress.total must be non-negative integer" }));
+  }
+  if (!isNumber(completed) || !Number.isInteger(completed) || completed < 0) {
+    return Result.err(new DecodeError({ message: "TaskProgress.completed must be non-negative integer" }));
+  }
+  if (!isNumber(ready) || !Number.isInteger(ready) || ready < 0) {
+    return Result.err(new DecodeError({ message: "TaskProgress.ready must be non-negative integer" }));
+  }
+  if (!isNumber(blocked) || !Number.isInteger(blocked) || blocked < 0) {
+    return Result.err(new DecodeError({ message: "TaskProgress.blocked must be non-negative integer" }));
+  }
+
+  return Result.ok({ total, completed, ready, blocked });
 }

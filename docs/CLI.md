@@ -328,8 +328,8 @@ os task tree [TASK_ID]
 ```
 
 **Behavior:**
-- If `TASK_ID` provided, shows tree rooted at that task
-- If omitted, shows highest priority milestone tree
+- If `TASK_ID` provided, shows tree rooted at that task (JSON: single `TaskTree`)
+- If omitted, shows **all milestone trees** (JSON: `TaskTree[]` array)
 - Output includes all descendants recursively
 
 **Example:**
@@ -337,8 +337,20 @@ os task tree [TASK_ID]
 # Show tree for specific milestone
 os task tree task_01JQAZ...
 
-# Show tree for highest priority milestone
+# Show all milestone trees
 os task tree
+```
+
+**JSON Output:**
+```json
+// With TASK_ID (single tree):
+{ "task": {...}, "children": [...] }
+
+// Without TASK_ID (all milestones):
+[
+  { "task": {...}, "children": [...] },
+  { "task": {...}, "children": [...] }
+]
 ```
 
 ### `os task search`
@@ -354,6 +366,38 @@ Searches task `description`, `context`, and `result` fields (case-insensitive su
 **Example:**
 ```bash
 os task search "authentication"
+```
+
+### `os task progress`
+
+Get progress summary for a milestone or all tasks.
+
+```bash
+os task progress [TASK_ID]
+```
+
+**Behavior:**
+- If `TASK_ID` provided, counts that task and all descendants
+- If omitted, counts all tasks in database
+- Returns aggregate counts
+
+**Output:**
+```json
+{
+  "total": 10,
+  "completed": 3,
+  "ready": 5,      // !completed && !effectivelyBlocked
+  "blocked": 2     // !completed && effectivelyBlocked
+}
+```
+
+**Example:**
+```bash
+# Progress for specific milestone
+os task progress task_01JQAZ...
+
+# Progress for all tasks
+os task progress
 ```
 
 ## Learning Management
@@ -508,18 +552,20 @@ os --json task list --ready
 os --json vcs status
 ```
 
-## Task States
+## Task Status
 
-| State | Description |
+Tasks use `completed: boolean` and `effectivelyBlocked: boolean` fields:
+
+| Field | Description |
 |-------|-------------|
-| `pending` | Not started, may have blockers |
-| `in_progress` | Currently being worked on |
-| `completed` | Finished successfully |
+| `completed` | Task is finished |
+| `effectivelyBlocked` | Task OR any ancestor has incomplete blockers |
 
 **Ready state**: Computed, not stored. Task is ready when:
-- `status != completed`
-- No incomplete blockers
-- Not blocked by incomplete dependencies
+- `completed = false`
+- `effectivelyBlocked = false`
+
+**Note:** `startedAt` tracks when work began, `completedAt` tracks when finished.
 
 ## Task Hierarchy
 

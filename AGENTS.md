@@ -163,7 +163,6 @@ cd ui && npm run test:ui          # Run UI tests (agent-browser)
 | `docs/ARCHITECTURE.md` | System design |
 | `docs/CLI.md` | CLI command reference |
 | `docs/MCP.md` | MCP tool/API reference |
-| `docs/TASKS.md` | Task system design |
 | `docs/task-orchestrator-plan.md` | Original design spec |
 | `docs/codemode-*.md` | Codemode pattern research |
 | `ui/docs/UI-TESTING.md` | UI testing with agent-browser |

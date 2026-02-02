@@ -47,11 +47,12 @@ Tests the execute tool via the MCP server:
 ### integration.test.ts (End-to-End)
 Tests the full stack with real Rust CLI:
 
-- **Tasks API**: create, get, list, update, complete, reopen, delete, blockers
-- **Learnings API**: add, list, delete, inheritance
-- **VCS API**: detect, status, log, diff, commit
+- **Tasks API**: create, get, list, update, complete, reopen, delete, blockers, nextReady
+- **Learnings API**: list, inheritance (learnings added via tasks.complete)
 - **Error Handling**: nonexistent IDs, cycle detection, depth limits
 - **Complex Workflows**: full task lifecycle
+
+**Note:** VCS operations are integrated into task start/complete - no separate VCS API exposed in sandbox.
 
 ## Configuration
 
@@ -66,17 +67,15 @@ Tests automatically set these to:
 - CLI: `../os/target/debug/os` (relative to mcp/)
 - CWD: temp directory with jj repo
 
-## Known Issues
+## Test Status
 
-Some integration tests fail due to CLI/API behavior:
-- `should list tasks` - CLI returns unexpected format
-- `should get task with progressive context` - Context structure mismatch
-- `should add and remove blockers` - Blocker API issue
-- `should get status` - VCS status format issue
-- `should commit changes` - VCS commit format issue
-- `should handle full task lifecycle` - Composite issue
-
-These failures indicate areas needing investigation in the Rust CLI.
+All integration tests pass. Tests cover:
+- Task CRUD operations
+- NextReady DFS traversal
+- Learning bubbling via tasks.complete
+- Blocker relationships
+- Error handling (nonexistent IDs, cycles, depth limits)
+- Full task lifecycle workflows
 
 ## Test Patterns
 

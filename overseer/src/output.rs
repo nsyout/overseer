@@ -172,6 +172,9 @@ impl Printer {
             Command::Task(TaskCommand::Tree(_)) => {
                 self.print_task_tree(output);
             }
+            Command::Task(TaskCommand::Progress(_)) => {
+                self.print_task_progress(output);
+            }
             Command::Task(TaskCommand::Search(_)) => {
                 self.print_task_list_flat(output);
             }
@@ -255,6 +258,7 @@ impl Printer {
     }
 
     fn print_task_tree(&self, output: &str) {
+        // Try single tree first, then array of trees
         if let Ok(tree) = serde_json::from_str::<TreeNode>(output) {
             // Count stats from tree
             let (completed, blocked, ready) = Self::count_tree_stats(&tree);
@@ -262,6 +266,50 @@ impl Printer {
 
             self.print_tree_node(&tree, "", true);
             self.print_progress_summary(total, completed, blocked, ready);
+        } else if let Ok(trees) = serde_json::from_str::<Vec<TreeNode>>(output) {
+            if trees.is_empty() {
+                println!("No tasks found");
+                return;
+            }
+            let mut total_completed = 0;
+            let mut total_blocked = 0;
+            let mut total_ready = 0;
+
+            for (i, tree) in trees.iter().enumerate() {
+                let (c, b, r) = Self::count_tree_stats(tree);
+                total_completed += c;
+                total_blocked += b;
+                total_ready += r;
+                self.print_tree_node(tree, "", true);
+                if i < trees.len() - 1 {
+                    println!(); // Blank line between milestones
+                }
+            }
+            self.print_progress_summary(
+                total_completed + total_blocked + total_ready,
+                total_completed,
+                total_blocked,
+                total_ready,
+            );
+        } else {
+            println!("{}", output);
+        }
+    }
+
+    fn print_task_progress(&self, output: &str) {
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(output) {
+            let total = json.get("total").and_then(|v| v.as_u64()).unwrap_or(0);
+            let completed = json.get("completed").and_then(|v| v.as_u64()).unwrap_or(0);
+            let ready = json.get("ready").and_then(|v| v.as_u64()).unwrap_or(0);
+            let blocked = json.get("blocked").and_then(|v| v.as_u64()).unwrap_or(0);
+
+            println!(
+                "{}/{} complete | {} blocked | {} ready",
+                completed.style(self.colors.completed),
+                total,
+                blocked.style(self.colors.blocked),
+                ready.style(self.colors.pending),
+            );
         } else {
             println!("{}", output);
         }

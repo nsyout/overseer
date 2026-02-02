@@ -22,9 +22,18 @@ interface Task {
   description: string;
   priority: 1 | 2 | 3 | 4 | 5;
   completed: boolean;
-  depth: 0 | 1 | 2;
+  completedAt: string | null;
+  startedAt: string | null;
+  createdAt: string;            // ISO 8601
+  updatedAt: string;
+  result: string | null;        // Completion notes
+  commitSha: string | null;     // Auto-populated on complete
+  depth: 0 | 1 | 2;             // 0=milestone, 1=task, 2=subtask
   blockedBy: string[];
   blocks: string[];
+  bookmark?: string;            // VCS bookmark name (if started)
+  startCommit?: string;         // Commit SHA at start
+  effectivelyBlocked: boolean;  // True if task OR ancestor has incomplete blockers
 }
 
 interface TaskWithContext extends Task {
@@ -40,10 +49,24 @@ interface Learning {
   createdAt: string;
 }
 
+interface TaskTree {
+  task: Task;
+  children: TaskTree[];
+}
+
+interface TaskProgress {
+  total: number;
+  completed: number;
+  ready: number;     // !completed && !effectivelyBlocked
+  blocked: number;   // !completed && effectivelyBlocked
+}
+
+type TaskType = "milestone" | "task" | "subtask";
+
 // Tasks API
 // Note: VCS (jj or git) is REQUIRED for start/complete. CRUD ops work without VCS.
 declare const tasks: {
-  list(filter?: { parentId?: string; ready?: boolean; completed?: boolean }): Promise<Task[]>;
+  list(filter?: { parentId?: string; ready?: boolean; completed?: boolean; depth?: 0 | 1 | 2; type?: TaskType }): Promise<Task[]>;
   get(id: string): Promise<TaskWithContext>;
   create(input: {
     description: string;
@@ -65,6 +88,9 @@ declare const tasks: {
   block(taskId: string, blockerId: string): Promise<void>;
   unblock(taskId: string, blockerId: string): Promise<void>;
   nextReady(milestoneId?: string): Promise<TaskWithContext | null>;
+  tree(rootId?: string): Promise<TaskTree | TaskTree[]>;  // Returns single tree if rootId, array of all milestone trees if not
+  search(query: string): Promise<Task[]>;  // Search by description/context/result (case-insensitive)
+  progress(rootId?: string): Promise<TaskProgress>;  // Aggregate counts for milestone or all tasks
 };
 
 // Learnings API (learnings are added via tasks.complete)
@@ -80,6 +106,19 @@ Examples:
 \`\`\`javascript
 // List all ready tasks
 return await tasks.list({ ready: true });
+
+// List only milestones (two equivalent ways)
+return await tasks.list({ depth: 0 });
+return await tasks.list({ type: "milestone" });
+
+// Get progress summary
+return await tasks.progress(milestoneId);
+
+// Search tasks
+return await tasks.search("authentication");
+
+// Get task tree
+return await tasks.tree(milestoneId);
 
 // Create milestone with subtask
 const milestone = await tasks.create({

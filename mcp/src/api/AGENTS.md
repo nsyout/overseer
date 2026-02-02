@@ -7,18 +7,17 @@ VM sandbox APIs wrapping CLI with --json (tasks/learnings namespaces).
 | File | Purpose |
 |------|---------|
 | `index.ts` | API exports |
-| `tasks.ts` | Task CRUD + lifecycle: {list,get,create,update,start,complete,reopen,delete,block,unblock,nextReady} |
+| `tasks.ts` | Task CRUD + lifecycle: {list,get,create,update,start,complete,reopen,delete,block,unblock,nextReady,tree,search,progress} |
 | `learnings.ts` | Learning queries: {list} only (learnings added via tasks.complete) |
 
 **Note:** VCS ops integrated into task start/complete. Learnings added via `tasks.complete(id, { learnings })` and bubble to immediate parent.
 
 ## CLI BRIDGE PATTERN
 
-All APIs use `callCli(args)` from `../cli.ts`:
+All APIs use `callCli(args)` from `../cli.ts` with runtime decoders:
 
 ```ts
-const result = await callCli(["task", "get", id]);
-return result as Task;
+return decodeTask(await callCli(["task", "get", id])).unwrap("tasks.get");
 ```
 
 **Key mechanics:**
@@ -31,9 +30,10 @@ return result as Task;
 ## TYPE SAFETY
 
 - Input types: `CreateTaskInput`, `UpdateTaskInput`, `TaskFilter`
-- Return types: `Task`, `Learning`, `VcsStatus`, etc. (from `../types.ts`)
-- Never `any` - all CLI responses cast to domain types
-- Filters map to CLI flags: `filter.ready` -> `--ready`
+- Return types: `Task`, `Learning`, `TaskTree`, `TaskProgress`, etc. (from `../types.ts`)
+- Runtime decoders validate CLI output (from `../decoder.ts`)
+- Never `any` - decoder errors propagate with context
+- Filters map to CLI flags: `filter.ready` -> `--ready`, `filter.type` -> depth alias
 
 ## VCS INTEGRATION (Required for Workflow)
 

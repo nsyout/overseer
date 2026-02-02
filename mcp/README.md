@@ -53,7 +53,7 @@ await tasks.complete(task.id, {
 
 ### tasks
 
-- `list(filter?)` - List tasks
+- `list(filter?)` - List tasks (filter: `{ parentId?, ready?, completed?, depth?, type? }`)
 - `get(id)` - Get task with context + learnings
 - `create(input)` - Create task
 - `update(id, input)` - Update task
@@ -64,6 +64,9 @@ await tasks.complete(task.id, {
 - `block(taskId, blockerId)` - Add blocker
 - `unblock(taskId, blockerId)` - Remove blocker
 - `nextReady(milestoneId?)` - Get next ready task
+- `tree(rootId?)` - Get task tree (returns all milestone trees if no ID)
+- `search(query)` - Search tasks by description/context/result
+- `progress(rootId?)` - Get aggregate counts: `{ total, completed, ready, blocked }`
 
 ### learnings
 

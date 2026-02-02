@@ -24,10 +24,11 @@ src/
 | Task | File | Notes |
 |------|------|-------|
 | Add sandbox API | `api/*.ts` | Export in `api/index.ts`, add to `executor.ts` sandbox |
-| Modify tool schema | `server.ts:136-153` | ListToolsRequestSchema handler |
-| Change timeout | `cli.ts:7`, `executor.ts:45` | CLI_TIMEOUT_MS, vm timeout |
+| Modify tool schema | `server.ts` | TOOL_DESCRIPTION constant, ListToolsRequestSchema handler |
+| Change timeout | `cli.ts`, `executor.ts` | CLI_TIMEOUT_MS, vm timeout |
 | Add error type | `types.ts` | CliError, CliTimeoutError patterns |
 | Modify output limit | `executor.ts:9` | MAX_OUTPUT_SIZE (50k chars) |
+| Add decoder | `decoder.ts` | Runtime type validation for CLI output |
 
 ## CONVENTIONS
 
@@ -75,7 +76,9 @@ Agent code -> execute(code) -> vm.Script -> sandbox context
 Types in `types.ts` must match Rust `overseer/src/types.rs`:
 - `TaskId`: Branded, `task_` prefix + 26-char ULID
 - `Task`, `Learning`, `TaskContext`, `InheritedLearnings`: Identical shapes
+- `TaskTree`, `TaskProgress`: Additional types for new APIs
 - Runtime validators: `isTaskId()`, `parseTaskId()`, `isLearningId()`
+- Runtime decoders in `decoder.ts`: `decodeTask()`, `decodeTaskTree()`, `decodeTaskProgress()`, etc.
 
 ## PATTERNS (from learnings)
 
