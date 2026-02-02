@@ -6,7 +6,7 @@ Command handlers for `os` CLI - wire clap to core services.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `task.rs` | 614 | Task CRUD, lifecycle, queries |
+| `task.rs` | 680 | Task CRUD, lifecycle, queries |
 | `learning.rs` | - | Learning CRUD |
 | `vcs.rs` | - | VCS operations (detect, status, log, diff, commit) |
 | `data.rs` | - | Import/export tasks + learnings (JSON) |

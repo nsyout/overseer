@@ -82,8 +82,13 @@ if (command === "mcp") {
     console.error("Failed to start MCP server:", err.message);
     process.exit(1);
   });
-} else {
-  // All other commands - passthrough to native binary
+}
+// Handle `os ui` - start Task Viewer webapp
+else if (command === "ui") {
+  startUiServer(args.slice(1));
+}
+// All other commands - passthrough to native binary
+else {
   const child = spawn(getBinaryPath(), args, {
     stdio: "inherit",
   });
@@ -99,5 +104,91 @@ if (command === "mcp") {
     } else {
       process.exit(code ?? 0);
     }
+  });
+}
+
+/**
+ * Start the UI server
+ * Usage: os ui [port] [--port PORT] [--open]
+ */
+function startUiServer(uiArgs) {
+  // Parse args: positional port, --port flag, --open flag
+  let port = null;
+  let openBrowser = false;
+
+  for (let i = 0; i < uiArgs.length; i++) {
+    const arg = uiArgs[i];
+    if (arg === "--port" && i + 1 < uiArgs.length) {
+      port = parseInt(uiArgs[++i], 10);
+    } else if (arg === "--open") {
+      openBrowser = true;
+    } else if (arg === "--help" || arg === "-h") {
+      console.log(`Usage: os ui [port] [--port PORT] [--open]
+
+Options:
+  port          Port number (positional, default: 6969)
+  --port PORT   Port number (explicit flag)
+  --open        Open browser after starting
+
+Examples:
+  os ui              # Start on port 6969
+  os ui 8080         # Start on port 8080
+  os ui --port 3000  # Start on port 3000
+  os ui --open       # Start and open browser`);
+      process.exit(0);
+    } else if (/^\d+$/.test(arg) && port === null) {
+      // Positional port number
+      port = parseInt(arg, 10);
+    }
+  }
+
+  // Port precedence: --port > positional > PORT env > 6969
+  if (port === null && process.env.PORT) {
+    port = parseInt(process.env.PORT, 10);
+  }
+  if (port === null || isNaN(port)) {
+    port = 6969;
+  }
+
+  // Set up environment for the UI server
+  const binaryPath = getBinaryPath();
+  process.env.OVERSEER_CLI_PATH = binaryPath;
+  process.env.PORT = String(port);
+  process.env.NODE_ENV = "production";
+  
+  // Static files are in dist/ui/static/ relative to package root
+  const uiDir = join(__dirname, "..", "dist", "ui");
+  process.env.OVERSEER_UI_STATIC_ROOT = join(uiDir, "static");
+
+  // Change cwd to ui dir (serveStatic needs relative path from cwd)
+  process.chdir(uiDir);
+
+  const serverPath = join(uiDir, "server.js");
+  
+  if (!existsSync(serverPath)) {
+    console.error("UI server not found. The package may not have been built correctly.");
+    console.error(`Expected: ${serverPath}`);
+    process.exit(1);
+  }
+
+  // Open browser after server starts (if requested)
+  if (openBrowser) {
+    // Delay to let server start
+    setTimeout(() => {
+      const url = `http://localhost:${port}`;
+      const openCmd =
+        platform === "darwin" ? "open" :
+        platform === "win32" ? "start" : "xdg-open";
+      try {
+        execSync(`${openCmd} ${url}`, { stdio: "ignore" });
+      } catch {
+        // Ignore errors (e.g., no display)
+      }
+    }, 500);
+  }
+
+  import(serverPath).catch((err) => {
+    console.error("Failed to start UI server:", err.message);
+    process.exit(1);
   });
 }

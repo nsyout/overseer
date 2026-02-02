@@ -7,8 +7,8 @@ SQLite persistence with foreign key enforcement, CASCADE deletes, prefixed ID co
 | File | Lines | Purpose |
 |------|-------|---------|
 | `schema.rs` | 71 | DDL, connection mgmt, FK enforcement |
-| `task_repo.rs` | 388 | Task CRUD, blockers, hierarchy queries |
-| `learning_repo.rs` | 252 | Learning CRUD, task association |
+| `task_repo.rs` | 502 | Task CRUD, blockers, hierarchy queries |
+| `learning_repo.rs` | 282 | Learning CRUD, task association |
 | `mod.rs` | 12 | Public API re-exports |
 
 ## SCHEMA

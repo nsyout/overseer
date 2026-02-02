@@ -76,3 +76,9 @@ Types in `types.ts` must match Rust `overseer/src/types.rs`:
 - `TaskId`: Branded, `task_` prefix + 26-char ULID
 - `Task`, `Learning`, `TaskContext`, `InheritedLearnings`: Identical shapes
 - Runtime validators: `isTaskId()`, `parseTaskId()`, `isLearningId()`
+
+## PATTERNS (from learnings)
+
+- Reuse domain types from `types.ts` (Depth, Priority) rather than inline literals
+- When CLI has `conflicts_with_all`, add runtime validation in MCP layer to throw clear JS errors before spawn
+- Use `Record<UnionType, T>` pattern for exhaustive type-safe mappings

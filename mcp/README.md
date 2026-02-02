@@ -40,7 +40,7 @@ const task = await tasks.create({
 // Get task with progressive context
 const full = await tasks.get(task.id);
 console.log(full.context); // { own, parent, milestone }
-console.log(full.learnings); // { own: [...] }
+console.log(full.learnings); // { own: [...], parent: [...], milestone: [...] }
 
 // Complete with result and learnings (learnings bubble to immediate parent)
 await tasks.complete(task.id, {

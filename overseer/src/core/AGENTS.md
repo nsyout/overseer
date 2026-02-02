@@ -7,9 +7,9 @@ Business logic layer - orchestrates task operations, validation, context assembl
 | File | Lines | Purpose |
 |------|-------|---------|
 | `mod.rs` | - | Module exports |
-| `task_service.rs` | 1407 | Task CRUD, validation, cycle detection, depth enforcement |
-| `workflow_service.rs` | 816 | Task lifecycle: start/complete with VCS |
-| `context.rs` | 480 | Context chain assembly, learning aggregation |
+| `task_service.rs` | 1471 | Task CRUD, validation, cycle detection, depth enforcement |
+| `workflow_service.rs` | 1208 | Task lifecycle: start/complete with VCS |
+| `context.rs` | 481 | Context chain assembly, learning aggregation |
 
 ## KEY ALGORITHMS
 
@@ -28,7 +28,7 @@ new_blocker -> its blockers -> their blockers -> ... -> task_id? (cycle!)
 - Stack-based iteration (no recursion)
 - Early termination on cycle found
 
-### Next Ready Resolution (task_service.rs:419-548)
+### Next Ready Resolution (task_service.rs:434-548)
 
 **`next_ready()`**: DFS to find deepest unblocked leaf
 **`resolve_start_target()`**: Follows blockers to find startable work

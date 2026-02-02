@@ -10,13 +10,13 @@ src/
 ├── commands/         # Subcommand handlers (task, learning, vcs, data)
 │   └── mod.rs        # Exports TaskCommand, LearningCommand, etc.
 ├── core/
-│   ├── task_service.rs     # Business logic: validation, cycles (1407 lines)
-│   ├── workflow_service.rs # Start/complete with VCS (816 lines)
-│   └── context.rs          # Context chain assembly (480 lines)
+│   ├── task_service.rs     # Business logic: validation, cycles (1471 lines)
+│   ├── workflow_service.rs # Start/complete with VCS (1208 lines)
+│   └── context.rs          # Context chain assembly (481 lines)
 ├── db/
 │   ├── schema.rs        # SQLite DDL, migrations
-│   ├── task_repo.rs     # Task CRUD (388 lines)
-│   └── learning_repo.rs # Learning CRUD
+│   ├── task_repo.rs     # Task CRUD (502 lines)
+│   └── learning_repo.rs # Learning CRUD (282 lines)
 ├── vcs/
 │   ├── detection.rs     # Detect .jj/ vs .git/
 │   ├── backend.rs       # VcsBackend trait, types
@@ -75,3 +75,36 @@ cargo test -- --nocapture  # See output
 | `tests/*.rs` | Integration (3 files) |
 | `src/**/*.rs` | Unit (inline #[test]) |
 | `testutil.rs` | Helpers: JjTestRepo, GitTestRepo |
+
+## PATTERNS (from learnings)
+
+### Raw Output Commands
+For commands that don't fit `run()->JSON->print` pattern (e.g., shell completions):
+- Handle in `main()` with early return BEFORE `db_path`/`run()`
+- Use `unreachable!()` with `// PRECONDITION` comment in match arms
+
+### Color Policy
+- `NO_COLOR` spec: presence of env var disables color, value ignored (`NO_COLOR=''` still disables)
+- `TERM=dumb` is common convention for no ANSI even when `isatty=true` - check it
+- Check stdout vs stderr separately - they can differ (stderr piped, stdout TTY)
+- `owo-colors Style::new()` returns no-op style for disabled-color mode
+
+### clap Patterns
+- `clap_complete` version should match `clap` version (both 4.5)
+- `conflicts_with_all`: Use when new flags supersede existing ones semantically
+- `Option<Option<T>>`: Idiomatic for optional flag with optional value (requires `num_args=0..=1`)
+
+### Type Sync
+- Type changes require sync: Rust `types.rs` + TS `types.ts` + display `TreeTask` struct
+- `TaskId` needed `Ord` derive for sort tie-breaker - newtypes don't auto-derive
+
+## DEPENDENCIES
+
+Key crates:
+- `jj-lib =0.37` - Pinned exactly (API breaks between minors)
+- `gix` - Git operations
+- `rusqlite` - SQLite with bundled feature
+- `thiserror` - Error handling
+- `clap` - CLI parsing
+- `chrono` - Timestamps
+- `ulid` - ID generation

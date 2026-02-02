@@ -7,8 +7,8 @@ VM sandbox APIs wrapping CLI with --json (tasks/learnings namespaces).
 | File | Purpose |
 |------|---------|
 | `index.ts` | API exports |
-| `tasks.ts` | Task CRUD + lifecycle: {list,get,create,update,start,complete,reopen,delete,block,unblock,nextReady,tree,search} |
-| `learnings.ts` | Learning queries: {list} only (add/delete removed - learnings added via tasks.complete) |
+| `tasks.ts` | Task CRUD + lifecycle: {list,get,create,update,start,complete,reopen,delete,block,unblock,nextReady} |
+| `learnings.ts` | Learning queries: {list} only (learnings added via tasks.complete) |
 
 **Note:** VCS ops integrated into task start/complete. Learnings added via `tasks.complete(id, { learnings })` and bubble to immediate parent.
 

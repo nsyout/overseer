@@ -2,28 +2,37 @@
 
 System design, data model, and invariants for Overseer.
 
+**Scope:** System map for understanding how Overseer works. Not a CLI reference ([CLI.md](CLI.md)), MCP usage guide ([MCP.md](MCP.md)), or UI component docs ([../ui/AGENTS.md](../ui/AGENTS.md)).
+
 ## Overview
 
-Overseer uses a **two-tier architecture**: Rust CLI for business logic + Node.js MCP wrapper for agent interface.
+Overseer is a SQLite-backed task graph manager with:
+- **Rust CLI** (`os`) as source of truth for all business logic
+- **Node MCP server** providing codemode interface for agents  
+- **Web UI** for visual task inspection
+- **VCS integration** (jj-first) for workflow operations
 
 ```
-┌─────────────────────────────────┐
-│     Overseer MCP (Node.js)      │
-│  - execute tool (codemode)      │
-│  - VM sandbox (tasks/vcs APIs)  │
-│  - CLI bridge (spawn + JSON)    │
-└─────────────────────────────────┘
-              │
-              ▼
-┌─────────────────────────────────┐
-│        os CLI (Rust)            │
-│  - All business logic           │
-│  - SQLite storage               │
-│  - jj-lib (primary VCS)         │
-│  - gix (git fallback)           │
-│  - JSON output mode             │
-└─────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    Entry Points                             │
+├─────────────────┬─────────────────┬─────────────────────────┤
+│   MCP Server    │    UI Server    │     Direct CLI          │
+│   (Node.js)     │  (Hono/Node)    │                         │
+│   execute tool  │  /api/* routes  │   os task list          │
+└────────┬────────┴────────┬────────┴───────────┬─────────────┘
+         │                 │                    │
+         └─────────────────┼────────────────────┘
+                           │ spawn os --json ...
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      os CLI (Rust)                          │
+│  - All business logic (validation, cycles, workflows)       │
+│  - SQLite persistence ($CWD/.overseer/tasks.db)             │
+│  - VCS backends: jj-lib (primary), gix (fallback)           │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+**Key insight:** No long-running Rust daemon. Node pieces are thin shells that spawn the CLI.
 
 ## Why This Architecture?
 
@@ -31,423 +40,269 @@ Overseer uses a **two-tier architecture**: Rust CLI for business logic + Node.js
 |----------|-----------|
 | **Rust CLI core** | Testable, reusable, performant, type-safe |
 | **Node MCP wrapper** | MCP SDK is JS, codemode needs V8 sandbox |
-| **SQLite not JSON** | Queries, transactions, FTS, concurrent safe |
+| **SQLite not JSON** | Queries, transactions, concurrent safe |
 | **jj-lib not shell** | Native performance, no spawn overhead |
 | **gix not git2** | Pure Rust, no C deps, actively maintained |
-| **JJ-first** | Primary VCS, git as fallback for wider adoption |
-| **ULID IDs** | Sortable, no central coordination needed |
+| **JJ-first** | Primary VCS, git as fallback |
+| **ULID IDs** | Sortable, no central coordination |
 
-## Data Model
+## Package Structure
 
-### Task Entity
-
-```sql
-CREATE TABLE tasks (
-    id TEXT PRIMARY KEY,              -- ULID (task_01JQAZ...)
-    parent_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
-    description TEXT NOT NULL,
-    context TEXT NOT NULL DEFAULT '',
-    result TEXT,                      -- Completion notes
-    priority INTEGER NOT NULL DEFAULT 3,  -- 1-5
-    status TEXT NOT NULL DEFAULT 'pending',  -- pending|in_progress|completed
-    depth INTEGER,                    -- 0=milestone, 1=task, 2=subtask
-    commit_sha TEXT,                  -- Auto-populated on complete
-    created_at TEXT NOT NULL,         -- ISO 8601
-    started_at TEXT,
-    completed_at TEXT
-);
+```
+overseer/
+├── overseer/        # Rust CLI (binary: os)
+│   └── src/
+│       ├── core/    # task_service (1471), workflow_service (1208), context (481)
+│       ├── db/      # SQLite repos
+│       └── vcs/     # jj.rs (754), git.rs (854)
+├── mcp/             # Node MCP codemode server
+├── ui/              # Hono API + Vite + React SPA
+└── npm/             # Publishing: wrapper + platform binaries
 ```
 
-**Hierarchy rules:**
-- **Milestone** (depth 0): No parent, root of tree
-- **Task** (depth 1): Parent is milestone
-- **Subtask** (depth 2): Parent is task, max depth
+## Domain Model
 
-**Status transitions:**
-```
-pending → in_progress → completed
-          ↓             ↓
-        pending ← ← ← ← ┘ (reopen)
-```
+### Task Hierarchy (Tree)
 
-### Learning Entity
+Tasks form a tree with **max depth = 2** (3 levels total):
 
-```sql
-CREATE TABLE learnings (
-    id TEXT PRIMARY KEY,              -- ULID (lrn_01JQAZ...)
-    task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
-    source_task_id TEXT,              -- Optional: which task generated this
-    created_at TEXT NOT NULL
-);
-```
+| Depth | Name | Parent |
+|-------|------|--------|
+| 0 | Milestone | None (root) |
+| 1 | Task | Milestone |
+| 2 | Subtask | Task |
 
-Learnings attached to tasks, inherited progressively down hierarchy.
+**Depth is computed from parent chain, not stored.**
 
-### Task Blockers
+### Blockers (DAG)
 
-```sql
-CREATE TABLE task_blockers (
-    task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    blocker_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    PRIMARY KEY (task_id, blocker_id)
-);
-```
+`task_blockers(task_id, blocker_id)` defines dependencies between tasks.
 
-Explicit dependency graph. Task is **ready** when all blockers completed.
+**Ready:** Task is ready when not completed AND all direct blockers completed.
 
-## Invariants
+**Effectively blocked:** Task OR any ancestor has incomplete blockers. Subtrees inherit blocked-ness.
 
-### 1. Max Depth = 2
+### Learnings
 
-Tasks cannot exceed depth 2 (3 levels total: Milestone → Task → Subtask).
+Learnings are knowledge captured during task work. They **bubble upward on completion**:
 
-**Enforced by:** `TaskService::create()` checks parent depth before insert.
+1. Learnings attached to completed task
+2. **Copied to immediate parent** (preserves original `source_task_id`)
+3. Siblings see learnings after their tasks complete and merge
 
-### 2. No Blocker Cycles
+**Idempotency:** Unique index on `(task_id, source_task_id, content)` prevents duplicates on re-bubble.
 
-Cannot create blocker relationships that form cycles.
+## Persistence
 
-**Enforced by:** `TaskService::add_blocker()` runs DFS cycle detection before insert.
+### Tables
 
-**Example rejected:**
-```
-A blocks B
-B blocks C
-C blocks A  ← rejected (cycle: A→B→C→A)
-```
+| Table | Purpose |
+|-------|---------|
+| `tasks` | Core fields + workflow (`started_at`, `bookmark`, `start_commit`, `commit_sha`) |
+| `learnings` | Content + `source_task_id` for attribution |
+| `task_blockers` | Dependency edges |
+| `task_metadata` | Reserved for extensibility |
 
-### 3. No Parent Cycles
+**ID constraints:** CHECK constraints enforce `task_*` and `lrn_*` prefixes.
 
-Cannot set parent that would create cycle in task tree.
+**CASCADE deletes:** Deleting a task removes descendants, learnings, and blocker edges.
 
-**Enforced by:** `TaskService::update()` validates parent chain before update.
+### Schema Versioning
 
-### 4. Complete Requires Children Done
+- `SCHEMA_VERSION = 3` (in `overseer/src/db/schema.rs`)
+- `PRAGMA user_version` tracks version
+- WAL mode enabled for concurrent access
 
-Cannot complete task if it has pending children.
+## Core Workflows
 
-**Enforced by:** `TaskService::complete()` checks for incomplete children.
+### CRUD vs Workflow Operations
 
-### 5. Ready State Computed
+| Operation | VCS Required? |
+|-----------|---------------|
+| create, list, get, update, delete | No |
+| block, unblock, reopen | No |
+| **start, complete** | **Yes** |
 
-Task is ready when:
-- `status != completed`
-- All blockers completed (or blocker deleted)
-- Not currently blocked
+Workflow ops fail with `NotARepository` if no VCS found, or `DirtyWorkingCopy` on uncommitted changes.
 
-**Enforced by:** Computed during `list(filter: { ready: true })`.
+### Start Semantics
 
-### 6. VCS Required for Workflow
+`start(id)` performs:
 
-VCS (jj or git) is required for `start` and `complete` operations. Fails with `NotARepository` if none found.
+1. **Validate** task is startable (not blocked, is next-ready target)
+2. **Create bookmark** (idempotent - tolerates "already exists")
+3. **Checkout** bookmark
+4. **Record** `start_commit` SHA
+5. **Persist** bookmark name + timestamps in DB
+6. **Bubble `started_at`** to ancestors (timestamps only, no bookmarks)
 
-**Enforced by:** `WorkflowService` requires `Box<dyn VcsBackend>` (not Option).
+**Idempotency:** If `started_at` + `bookmark` already set, just checkout.
 
-### 7. CASCADE Delete
+### Complete Semantics
 
-Deleting task cascades to:
-- All child tasks recursively
-- All learnings attached to task
-- All blocker relationships
+`complete(id, { result?, learnings? })` performs in order:
 
-**Enforced by:** SQLite `ON DELETE CASCADE` foreign keys.
+1. **VCS commit** (NothingToCommit = success)
+2. **Mark complete** in DB + attach learnings
+3. **Bubble learnings** to immediate parent
+4. **Delete bookmark** (best-effort; clear DB field only on success)
+5. **Auto-complete ancestors** if all children done and unblocked
 
-## Progressive Context
+**Important:** Auto-completing parents is DB-only (no extra commit). Milestone completion does run commit logic.
 
-When fetching task, response includes inherited context from ancestors:
+### Milestone Completion
 
-```json
-{
-  "task": { "id": "...", "depth": 2, ... },
-  "context": {
-    "own": "Subtask's context",
-    "parent": "Parent task's context",     // depth > 0
-    "milestone": "Root milestone context"  // depth > 1
-  },
-  "learnings": {
-    "milestone": [...],  // From root
-    "parent": [...]      // From parent
-  }
-}
-```
+Completing a milestone triggers best-effort deletion of **ALL descendant bookmarks** (depth 1 and 2), not just direct children.
 
-**Context disclosure by depth:**
+### Delete Cleanup
+
+On task delete:
+- Prefetch bookmarks before CASCADE removes rows
+- Best-effort delete VCS bookmarks (failure doesn't block deletion)
+
+## Key Algorithms
+
+### Cycle Detection (DFS, not depth limit)
+
+**Parent cycles:** Walk parent chain upward (linear).
+
+**Blocker cycles:** DFS over blocker edges with HashSet visited set.
+
+**Anti-pattern:** Never use depth limit as cycle detection.
+
+### `next_ready()` - Deepest Unblocked Leaf
+
+DFS from milestone (or across milestones by priority):
+- Returns deepest incomplete + effectively unblocked leaf
+- If node's children all complete, node itself is returned
+
+### `resolve_start_target()` - Follow Blockers
+
+When starting a blocked task:
+- Follows incomplete blockers to find actually startable work
+- Detects blocker cycles during traversal
+
+### Context Chain Assembly
+
+`TaskWithContext` assembles context/learnings by depth:
 
 | Depth | Own | Parent | Milestone |
 |-------|-----|--------|-----------|
-| 0 (Milestone) | ✅ | - | - |
-| 1 (Task) | ✅ | - | ✅ |
-| 2 (Subtask) | ✅ | ✅ | ✅ |
+| 0 | ✓ | - | - |
+| 1 | ✓ | - | ✓ |
+| 2 | ✓ | ✓ | ✓ |
 
-**Implementation:** `get_task_with_context()` walks parent chain, assembles context + learnings.
+## VCS Subsystem
 
-## VCS Integration
+### Detection (jj-first)
 
-### Backend Trait
+Walk up from cwd:
+1. `.jj/` found → `JjBackend` (jj-lib)
+2. `.git/` found → `GixBackend` (gix + git CLI for commits)
+3. Neither → `VcsType::None`
 
-```rust
-pub trait VcsBackend {
-    fn vcs_type(&self) -> VcsType;       // jj, git, none
-    fn root(&self) -> &Path;             // Repo root
-    fn status(&self) -> Result<VcsStatus>;
-    fn log(&self, limit: usize) -> Result<Vec<LogEntry>>;
-    fn diff(&self, base: Option<&str>) -> Result<Vec<DiffEntry>>;
-    fn commit(&self, message: &str) -> Result<CommitResult>;
-    fn current_commit_id(&self) -> Result<String>;
-}
+### Backend Invariants
+
+- **jj-lib is primary**, gix is fallback
+- Never cache `Workspace`/`ReadonlyRepo` - reload each operation
+- gix uses git CLI for `commit()` (gix staging API unstable)
+
+### Workflow VCS Operations
+
+| Operation | VCS Action |
+|-----------|------------|
+| start | `create_bookmark`, `checkout`, `current_commit_id` |
+| complete | `commit`, `delete_bookmark` (best-effort) |
+| delete | `delete_bookmark` (best-effort) |
+
+## Public Surfaces
+
+### Rust CLI (`os`)
+
+Authoritative source. Supports `--json` for machine output.
+
+```bash
+os task list --ready          # Human output
+os --json task list --ready   # JSON output (for MCP/UI)
 ```
 
-### Detection Priority
+### MCP Codemode Server
 
-1. Walk up from `cwd` looking for `.jj/` → use `JjBackend`
-2. If not found, look for `.git/` → use `GixBackend`
-3. If neither → return `VcsType::None`
+Single `execute` tool. VM sandbox exposes:
 
-**jj-first design:** Always prefer jj when available.
-
-### Backend Implementations
-
-#### JjBackend (jj-lib)
-
-- Native Rust, no spawn overhead
-- Uses `jj_lib::workspace::Workspace`
-- Primary VCS, optimized for performance
-
-#### GixBackend (gix)
-
-- Pure Rust git implementation
-- No C dependencies (unlike git2)
-- Fallback for non-jj repos
-
-### Commit Workflow
-
-**jj (jj-lib):**
-```rust
-// 1. jj describe -m "message"  (set description)
-// 2. jj new                    (create new change)
-```
-
-**git (gix + CLI):**
-```rust
-// 1. git add -A    (stage all)
-// 2. git commit -m "message"
-// Note: Uses CLI because gix staging API unstable
-```
-
-## Codemode Pattern
-
-Overseer MCP uses **single execute tool** instead of one tool per operation.
-
-### Traditional MCP
-
-```
-Tool: create_task
-Tool: add_learning
-Tool: complete_task
-→ 3 tool calls, 3 round trips
-```
-
-### Codemode MCP
-
-```javascript
-// Single tool call, agent writes JS
-const task = await tasks.create({...});
-await learnings.add(task.id, "...");
-await tasks.complete(task.id);
-return task;
-```
-
-### Benefits
-
-- **Fewer round trips:** Compose operations in single execution
-- **Better DX:** Agents understand TypeScript APIs better than tool schemas
-- **Control flow:** Use JS `if/for/try` for complex logic
-- **Type safety:** VM sandbox provides typed `tasks/learnings/vcs` APIs
-
-### Implementation
-
-**Node MCP server:**
-1. Exposes single `execute` tool
-2. Receives JS code from agent
-3. Runs code in VM sandbox with APIs
-4. APIs call Rust CLI via `spawn`
-5. Returns execution result
-
-**VM sandbox context:**
 ```javascript
 {
-  tasks: { create, get, list, update, start, complete, ... },
-  learnings: { list },  // Learnings added via tasks.complete()
+  tasks: { create, get, list, update, start, complete, reopen, delete, block, unblock, nextReady },
+  learnings: { list },
   console, setTimeout, Promise
 }
 ```
 
-**Note:** VCS operations are integrated into task workflow - no direct API. `start` creates bookmark, `complete` commits changes.
+**No `vcs` API in sandbox** - VCS is integrated into `tasks.start`/`tasks.complete`.
 
-**Security:**
-- 30s execution timeout
-- No network access (fetch/http unavailable)
-- No filesystem access
-- Sandboxed environment
+**Security:** 30s timeout, 50k char output limit, no fs/network/process access.
 
-## Database Location
+### Web UI
 
-SQLite database stored at: `$CWD/.overseer/tasks.db`
+- **Hono API server** spawns `os --json ...`
+- **React SPA** uses TanStack Query against Hono endpoints
+- **Tailwind v4** for styling (OKLCH colors, monospace typography)
 
-**Initialization:**
-```bash
-# Automatic on first command
-os task create "First task"
-# Creates .overseer/ directory and tasks.db
-```
+Dev: Vite proxies `/api/*` to Hono. Prod: Hono serves static `dist/`.
 
-**Schema versioning:**
-```sql
-PRAGMA user_version = 1;
-PRAGMA journal_mode = WAL;  -- Better concurrent access
-```
+## Type Contracts
 
-## Error Handling
+Rust JSON output is source of truth. TypeScript mirrors it.
 
-### Rust CLI
+**Files that must stay in sync:**
 
-All errors use `thiserror`:
+| Rust | TypeScript |
+|------|------------|
+| `overseer/src/types.rs` | `mcp/src/types.ts` |
+| `overseer/src/core/context.rs` | `ui/src/types.ts` |
 
-```rust
-#[derive(Error, Debug)]
-pub enum OsError {
-    #[error("task not found: {0}")]
-    TaskNotFound(TaskId),
-    
-    #[error("max depth exceeded")]
-    MaxDepthExceeded,
-    
-    #[error("blocker cycle detected: {0}")]
-    BlockerCycle(String),
-    
-    #[error("task has pending children")]
-    PendingChildren,
-    
-    #[error(transparent)]
-    Vcs(#[from] VcsError),
-    
-    #[error(transparent)]
-    Db(#[from] rusqlite::Error),
-}
-```
+**Contract:** `serde(rename_all = "camelCase")` on all Rust structs.
 
-### MCP Server
+**Caveat:** `InheritedLearnings` in `types.rs` (schema/export) differs from `context.rs` (runtime) - the runtime version includes `own`.
 
-```typescript
-try {
-  const result = await execute(code);
-  return { result };
-} catch (err) {
-  if (err instanceof ExecutionError) {
-    return { error: err.message, stack: err.stackTrace };
-  }
-  throw err;
-}
-```
+## Distribution
 
-## Performance Considerations
+### npm Package Structure
 
-### Indexes
+`@dmmulroy/overseer` (main package):
+- Node router `bin/os`:
+  - `os mcp` → starts MCP server
+  - `os ui` → starts bundled UI server
+  - Otherwise → forwards to native platform binary
+- optionalDependencies on platform packages
 
-```sql
-CREATE INDEX idx_tasks_parent ON tasks(parent_id);
-CREATE INDEX idx_tasks_ready ON tasks(parent_id, completed, priority, created_at)
-    WHERE completed = 0;
-CREATE INDEX idx_learnings_task ON learnings(task_id);
-CREATE INDEX idx_blockers_blocker ON task_blockers(blocker_id);
-```
+`@dmmulroy/overseer-<platform>`:
+- Contains native `os` binary
+- chmod postinstall for executable
 
-### Optimized Builds
+**Environment variables:**
+- `OVERSEER_CLI_PATH` - Override CLI binary path
+- `OVERSEER_CLI_CWD` - Override working directory
+- `PORT` - UI server port (default: 6969)
 
-```toml
-[profile.dev.package.jj-lib]
-opt-level = 1  # Faster jj operations in dev
+## Guardrails
 
-[profile.dev.package.gix]
-opt-level = 1  # Faster git operations in dev
-```
+**Anti-patterns (never do):**
+- Guess VCS type - always detect via `detection.rs`
+- Use depth limit for cycle detection - use DFS
+- Bypass CASCADE delete invariant
+- Cache jj `Workspace`/`ReadonlyRepo`
+- Skip `rebase_descendants()` after `rewrite_commit()` in jj
 
-### VCS Backend Selection
-
-- **jj-lib:** Native Rust, no spawn = fast
-- **gix:** Pure Rust, no C linking = portable + fast
-- **CLI fallback:** Only for unstable gix APIs (staging)
-
-## Testing Strategy
-
-### Unit Tests
-
-- `TaskService`: CRUD, invariants, cycle detection
-- `LearningService`: CRUD, cascade delete
-- `VcsBackend`: Mock implementations
-
-### Integration Tests
-
-- `testutil` module: Shared test fixtures
-- `JjTestRepo`: Real jj repos in tempdir
-- `GitTestRepo`: Real git repos in tempdir
-- End-to-end VCS workflows
-
-### MCP Tests
-
-```typescript
-// Test execute tool
-const result = await execute(`
-  const task = await tasks.create({...});
-  return task.id;
-`);
-```
-
-## Future Considerations
-
-### Potential Enhancements
-
-1. **Full-text search:** SQLite FTS5 for task search
-2. **Export/import:** JSON dump/restore (Task #62)
-3. **Task templates:** Predefined task hierarchies
-4. **Time tracking:** Duration stats per task
-5. **Tags/labels:** Cross-cutting task organization
-
-### Scalability
-
-Current design supports:
-- **Tasks:** 100k+ (SQLite handles millions)
-- **Hierarchy:** 3 levels (prevents explosion)
-- **Concurrent access:** WAL mode enables readers during writes
-- **VCS repos:** Any size (native backends, no shell overhead)
-
-### Migration Path
-
-Schema versioning via `PRAGMA user_version`:
-
-```rust
-fn migrate(conn: &Connection) -> Result<()> {
-    let version: i32 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    
-    match version {
-        0 => {
-            // Initial schema
-            init_schema(conn)?;
-            conn.pragma_update(None, "user_version", 1)?;
-        }
-        1 => {
-            // Future migration
-        }
-        _ => {}
-    }
-    Ok(())
-}
-```
+**Invariants (always true):**
+- VCS operations run before DB updates in workflow
+- Bookmark created on start, deleted on complete (best-effort)
+- Milestone completion cleans ALL descendant bookmarks
+- Learnings bubble to immediate parent only (preserves source_task_id)
 
 ## References
 
 - [CLI Reference](CLI.md) - Complete command documentation
 - [MCP Guide](MCP.md) - Agent usage patterns
-- [Design Plan](task-orchestrator-plan.md) - Original design spec
-- [Codemode Research](codemode-research.md) - Implementation guide
+- [Task System](TASKS.md) - Task model deep dive
+- [UI Knowledge Base](../ui/AGENTS.md) - UI patterns and conventions

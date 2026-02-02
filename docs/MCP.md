@@ -67,7 +67,8 @@ interface TaskWithContext extends Task {
     parent?: string;            // If depth > 0
     milestone?: string;         // If depth > 1
   };
-  learnings: {                  // Inherited learnings from ancestors
+  learnings: {                  // Inherited learnings
+    own: Learning[];            // Learnings attached to this task
     parent: Learning[];         // Parent's learnings (if depth > 0)
     milestone: Learning[];      // Milestone's learnings (if depth > 1)
   };
@@ -118,8 +119,9 @@ tasks.update(id: string, input: {
 // State transitions
 // Start follows blockers to find startable work, cascades to deepest leaf
 tasks.start(id: string): Promise<Task>
-// Complete auto-bubbles up if all siblings done and parent unblocked
-tasks.complete(id: string, result?: string): Promise<Task>
+// Complete with optional result and learnings
+// Learnings bubble to immediate parent, auto-bubbles up completion if all siblings done
+tasks.complete(id: string, options?: { result?: string; learnings?: string[] }): Promise<Task>
 tasks.reopen(id: string): Promise<Task>
 tasks.delete(id: string): Promise<void>
 
@@ -135,18 +137,9 @@ tasks.nextReady(milestoneId?: string): Promise<TaskWithContext | null>
 ### `learnings` API
 
 ```javascript
-// Add learning to task
-learnings.add(
-  taskId: string,
-  content: string,
-  sourceTaskId?: string  // Optional source task
-): Promise<Learning>
-
 // List learnings for task
+// Note: Learnings are added via tasks.complete({ learnings: [...] })
 learnings.list(taskId: string): Promise<Learning[]>
-
-// Delete learning
-learnings.delete(id: string): Promise<void>
 ```
 
 ## Usage Patterns
@@ -194,20 +187,14 @@ await tasks.start(task.id);
 
 // ... do work ...
 
-// Add learnings as you go
-await learnings.add(
-  task.id,
-  "bcrypt rounds should be 12 for production",
-  null  // no source task
-);
-
-// Complete (auto-captures commit SHA)
+// Complete with result and learnings (auto-captures commit SHA)
+// Learnings bubble to immediate parent
 // Auto-bubbles up: if all siblings done and parent unblocked,
 // parent is auto-completed too
-await tasks.complete(
-  task.id,
-  "Login endpoint implemented with JWT tokens"
-);
+await tasks.complete(task.id, {
+  result: "Login endpoint implemented with JWT tokens",
+  learnings: ["bcrypt rounds should be 12 for production"]
+});
 
 return task;
 ```
@@ -224,11 +211,13 @@ const subtask = await tasks.get(subtaskId);
 // - milestone: root milestone's context
 
 // subtask.learnings contains:
-// - milestone: learnings from root
+// - own: learnings attached directly to this task
 // - parent: learnings from parent task
+// - milestone: learnings from root
 
 console.log("Milestone context:", subtask.context.milestone);
-console.log("Inherited learnings:", subtask.learnings.parent);
+console.log("Own learnings:", subtask.learnings.own);
+console.log("Parent learnings:", subtask.learnings.parent);
 ```
 
 ### VCS Integration (Required for Workflow)
@@ -324,17 +313,18 @@ const tasks = await tasks.list({ parentId: milestoneId });
 // tasks[0] has no inherited context
 ```
 
-### 2. Capture Learnings Early
+### 2. Capture Learnings on Complete
 
-Add learnings as you discover them, don't wait:
+Include learnings when completing tasks:
 
 ```javascript
-// ✅ Good - capture immediately
-await learnings.add(taskId, "bcrypt default rounds too low");
-// ... continue working ...
+// ✅ Good - capture learnings on complete
+await tasks.complete(taskId, {
+  result: "Feature implemented",
+  learnings: ["bcrypt default rounds too low"]
+});
 
-// ❌ Bad - might forget later
-// (working on task without capturing learnings)
+// Note: Learnings are added via tasks.complete(), not a separate API
 ```
 
 ### 3. Use Blockers for Dependencies

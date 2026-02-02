@@ -7,6 +7,7 @@
     "dev:api": "tsx watch src/api/index.ts",
     "dev:vite": "vite",
     "build": "vite build && tsc --project tsconfig.node.json",
+    "build:server": "node scripts/build-server.mjs",
     "typecheck": "tsc --noEmit",
     "test:ui": "./scripts/test-ui.sh test",
     "test:ui:quick": "./scripts/test-ui.sh quick",
@@ -32,6 +33,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "esbuild": "^0.24.2",
     "@tailwindcss/vite": "^4.0.6",
     "@types/node": "^22.10.10",
     "@types/react": "^19.0.8",

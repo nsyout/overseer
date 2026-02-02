@@ -20,13 +20,16 @@ interface Task {
   id: string;
   parentId: string | null;
   description: string;
-  context: { own: string; parent?: string; milestone?: string };
-  learnings: { milestone: Learning[]; parent: Learning[] };
   priority: 1 | 2 | 3 | 4 | 5;
   completed: boolean;
   depth: 0 | 1 | 2;
   blockedBy: string[];
   blocks: string[];
+}
+
+interface TaskWithContext extends Task {
+  context: { own: string; parent?: string; milestone?: string };
+  learnings: { own: Learning[]; parent: Learning[]; milestone: Learning[] };
 }
 
 interface Learning {
@@ -41,7 +44,7 @@ interface Learning {
 // Note: VCS (jj or git) is REQUIRED for start/complete. CRUD ops work without VCS.
 declare const tasks: {
   list(filter?: { parentId?: string; ready?: boolean; completed?: boolean }): Promise<Task[]>;
-  get(id: string): Promise<Task>;
+  get(id: string): Promise<TaskWithContext>;
   create(input: {
     description: string;
     context?: string;
@@ -56,12 +59,12 @@ declare const tasks: {
     parentId?: string;
   }): Promise<Task>;
   start(id: string): Promise<Task>;  // VCS required: creates bookmark, records start commit
-  complete(id: string, result?: string): Promise<Task>;  // VCS required: commits changes (NothingToCommit = success)
+  complete(id: string, options?: { result?: string; learnings?: string[] }): Promise<Task>;  // VCS required: commits changes (NothingToCommit = success)
   reopen(id: string): Promise<Task>;
   delete(id: string): Promise<void>;  // Best-effort VCS bookmark cleanup
   block(taskId: string, blockerId: string): Promise<void>;
   unblock(taskId: string, blockerId: string): Promise<void>;
-  nextReady(milestoneId?: string): Promise<Task | null>;
+  nextReady(milestoneId?: string): Promise<TaskWithContext | null>;
 };
 
 // Learnings API (learnings are added via tasks.complete)
@@ -100,7 +103,7 @@ const task = await tasks.get(subtask.id);
 console.log(task.context.milestone); // inherited from root
 
 // Complete task (VCS required - commits changes)
-await tasks.complete(task.id, "Implemented using jose library");
+await tasks.complete(task.id, { result: "Implemented using jose library" });
 \`\`\`
 `.trim();
 

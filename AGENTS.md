@@ -1,8 +1,8 @@
 # OVERSEER PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-01-29  
-**Commit:** 737704a  
-**JJ Change:** rqsypxwv
+**Generated:** 2026-02-01  
+**Commit:** 829fb09  
+**JJ Change:** mptvnovo
 
 **Overseer** (`os`) - Codemode MCP server for agent task management. SQLite-backed, native VCS (jj-lib + gix). JJ-first.
 
@@ -93,11 +93,14 @@ overseer/
 
 ## TYPE SYNC (Rust <-> TS)
 
-Types must stay in sync between `overseer/src/types.rs` and `mcp/src/types.ts`:
+Types must stay in sync between `overseer/src/types.rs`, `overseer/src/core/context.rs`, and `mcp/src/types.ts`:
 - `TaskId`: Newtype (Rust) / Branded type (TS), `task_` prefix + 26-char ULID
 - `LearningId`: Newtype / Branded, `lrn_` prefix
-- `Task`, `Learning`, `TaskContext`, `InheritedLearnings`: Identical shapes
+- `Task`, `Learning`, `TaskContext`: Identical shapes
+- `InheritedLearnings`: Rust struct in `context.rs` has `own`, `parent`, `milestone`; TS `InheritedLearnings` in `mcp/src/types.ts` matches
 - Rust uses `serde(rename_all = "camelCase")` -> JSON matches TS interfaces
+
+**Note:** The `InheritedLearnings` type in `overseer/src/types.rs` (with only `milestone` and `parent`) is for import/export schema compatibility. The actual runtime type used for `TaskWithContext` is in `context.rs` and includes `own`.
 
 ## CONVENTIONS
 
@@ -105,7 +108,7 @@ Types must stay in sync between `overseer/src/types.rs` and `mcp/src/types.ts`:
 - **TaggedError (TS)**: Errors use `_tag` discriminator
 - **No `any`**: Strict TypeScript
 - **No `!`**: Non-null assertions forbidden
-- **No `as Type`**: Type assertions forbidden
+- **Minimize `as Type`**: Type assertions discouraged; use decoders where possible
 - **jj-first**: ALWAYS check for `.jj/` before VCS commands
 
 ## ANTI-PATTERNS

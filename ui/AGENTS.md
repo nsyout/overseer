@@ -61,6 +61,15 @@ npm run test:ui:watch    # Continuous testing
 | Modify theme | `src/client/styles/global.css` |
 | CLI bridge | `src/api/cli.ts` |
 
+## LARGE COMPONENTS
+
+| Component | Lines | Purpose |
+|-----------|-------|---------|
+| `TaskGraph.tsx` | 1021 | React Flow graph with hierarchy visualization |
+| `TaskDetail.tsx` | 611 | Detail panel with context/learnings display |
+| `KanbanView.tsx` | 549 | Kanban board view |
+| `TaskList.tsx` | 545 | Filterable task list |
+
 ## THEME
 
 Tailwind v4 CSS-first config in `global.css`. Industrial aesthetic, dark mode only, OKLCH colors.
@@ -110,6 +119,35 @@ Tailwind v4 CSS-first config in `global.css`. Industrial aesthetic, dark mode on
 |----------|---------|
 | `docs/UI-TESTING.md` | agent-browser testing guide |
 | `../docs/specs/task-viewer.md` | Feature spec |
+
+## PATTERNS (from learnings)
+
+### Keyboard Shortcuts
+- `useKeyboardShortcuts` uses ref pattern: store `make` function in `useRef`, update `ref.current` each render
+- Guard with `e.isComposing` to prevent shortcuts during IME composition (CJK input)
+- `e.target` can be null at runtime - use `instanceof HTMLElement` check
+- SELECT elements are editable targets (exclude alongside INPUT/TEXTAREA)
+
+### Zustand
+- Selectors should be granular (one per state slice) to prevent re-renders
+- Store exports `useViewMode`/`useSelectedTaskId`/etc - use these, not raw `useStore`
+
+### ARIA/Accessibility
+- Roving tabindex: focused item gets `tabIndex=0`, others `-1`. On j/k, call `element.focus({ preventScroll: true })`
+- ARIA listbox requires arrow-key nav OR roving tabindex - don't mix button `role=option`
+- `role=listitem` must not override interactive semantics - wrap button in `div[role=listitem]`
+- Decorative SVG icons need `aria-hidden="true"`
+- `motion-reduce:transition-none` on all transitions for prefers-reduced-motion
+
+### Tailwind
+- Dynamic classes like `text-status-${var}` work by accident - use static lookup maps
+- `transition-all` is overly broad - use `transition-[property]` for specific animations
+- `tailwind-variants` slot values shouldn't concatenate conflicting classes
+
+### React
+- `useEffect` deps with state used only in guards defeat the guard's purpose - remove from deps
+- O(n) `findIndex` in recursive tree = O(n^2) total - precompute `Map<id, index>` via `useMemo`
+- ReactFlow `fitView()` works for offscreen nodes - don't guard with DOM existence check
 
 ## NOTES
 

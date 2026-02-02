@@ -5,8 +5,11 @@ Complete reference for the `os` command-line tool.
 ## Global Options
 
 ```bash
-os --version    # Show version
-os --help       # Show help
+os --version              # Show version
+os --help                 # Show help
+os --json <command>       # JSON output mode
+os --db <path> <command>  # Custom database path
+os --no-color <command>   # Disable colored output
 ```
 
 ## Task Management
@@ -85,13 +88,19 @@ List tasks with filters.
 os task list \
   [--parent PARENT_ID] \
   [--ready] \
-  [--completed]
+  [--completed] \
+  [--milestones | --tasks | --subtasks] \
+  [--flat]
 ```
 
 **Filters:**
-- `--parent`: Show children of specific task
+- `--parent`: Show children of specific task (conflicts with depth filters)
 - `--ready`: Only show ready tasks (no blockers, not completed)
 - `--completed`: Only show completed tasks
+- `-m, --milestones`: Show only depth 0 tasks (mutually exclusive with --tasks/--subtasks)
+- `-t, --tasks`: Show only depth 1 tasks (mutually exclusive with --milestones/--subtasks)
+- `-s, --subtasks`: Show only depth 2 tasks (mutually exclusive with --milestones/--tasks)
+- `--flat`: Show flat list instead of tree view (human output only; JSON always flat)
 
 **Examples:**
 ```bash
@@ -169,8 +178,12 @@ os task start task_01MILESTONE_A...
 Mark task as completed.
 
 ```bash
-os task complete TASK_ID [--result "Completion notes"]
+os task complete TASK_ID [--result "Completion notes"] [--learning "..."]...
 ```
+
+**Arguments:**
+- `--result`: Completion notes/summary
+- `--learning`: Learning discovered during task (repeatable flag)
 
 **Behavior:**
 - **VCS required** - fails with `NotARepository` if no jj/git
@@ -193,6 +206,9 @@ os task complete task_01JQAZ...
 
 # With result notes
 os task complete task_01JQAZ... --result "Implemented JWT auth with refresh tokens"
+
+# With learnings (repeatable)
+os task complete task_01JQAZ... --learning "bcrypt rounds should be 12+" --learning "jose > jsonwebtoken"
 
 # Completing the last subtask auto-completes its parent task
 # If task has subtask_A and subtask_B, completing both auto-completes the task
@@ -395,7 +411,7 @@ os vcs detect
 **Output:**
 ```json
 {
-  "vcs_type": "jj",  // or "git", "none"
+  "type": "jj",  // or "git", "none"
   "root": "/path/to/repo"
 }
 ```
@@ -411,8 +427,11 @@ os vcs status
 **Output:**
 ```json
 {
-  "files": ["path/to/modified.rs", "path/to/new.txt"],
-  "current_commit_id": "abc123..."
+  "files": [
+    { "path": "path/to/modified.rs", "status": "modified" },
+    { "path": "path/to/new.txt", "status": "added" }
+  ],
+  "workingCopyId": "abc123..."
 }
 ```
 
@@ -454,8 +473,8 @@ os vcs diff [BASE_REV]
 **Output:**
 ```json
 [
-  { "path": "src/auth.rs", "change_type": "modified" },
-  { "path": "tests/auth_test.rs", "change_type": "added" }
+  { "path": "src/auth.rs", "changeType": "modified" },
+  { "path": "tests/auth_test.rs", "changeType": "added" }
 ]
 ```
 
@@ -474,7 +493,8 @@ os vcs commit -m "Commit message"
 **Output:**
 ```json
 {
-  "commit_id": "abc123..."
+  "id": "abc123...",
+  "message": "Commit message"
 }
 ```
 
@@ -519,19 +539,26 @@ Milestone (depth 0)
 
 ## Progressive Context
 
-When fetching task with `get` or `next-ready`:
+When fetching task with `get` or `next-ready`, the response is **flat** (task fields at root level with context/learnings added):
 
 ```json
 {
-  "task": { ... },
+  "id": "task_01JQAZ...",
+  "parentId": "task_01JQAY...",
+  "description": "Implement login endpoint",
+  "priority": 3,
+  "completed": false,
+  "depth": 2,
+  ...other task fields...
   "context": {
     "own": "Task's context",           // Always present
     "parent": "Parent task context",   // If depth > 0
     "milestone": "Root context"        // If depth > 1
   },
   "learnings": {
-    "milestone": [...],  // From root milestone
-    "parent": [...]      // From parent task
+    "own": [...],        // Learnings attached to this task
+    "parent": [...],     // From parent task (if depth > 0)
+    "milestone": [...]   // From root milestone (if depth > 1)
   }
 }
 ```
@@ -593,6 +620,38 @@ os data export --json
 **Use cases:**
 - Backup
 - Version control for task plans (commit export files to git)
+
+## Additional Commands
+
+### `os ui`
+
+Launch the Task Viewer web UI:
+
+```bash
+os ui [--port PORT]
+```
+
+Opens a web browser to the task visualization interface.
+
+### `os init`
+
+Initialize Overseer in the current directory:
+
+```bash
+os init
+```
+
+Creates `.overseer/` directory and `tasks.db` database.
+
+### `os completions`
+
+Generate shell completions:
+
+```bash
+os completions <SHELL>
+```
+
+Supported shells: `bash`, `zsh`, `fish`, `powershell`, `elvish`
 
 ## Database Location
 

@@ -2,17 +2,37 @@ import { Hono } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { tasks } from "./routes/tasks.js";
 
-const app = new Hono()
+/**
+ * Create API routes without static file serving.
+ * Static serving is configured separately for dev vs prod.
+ */
+const api = new Hono()
   .get("/health", (c) => {
     return c.json({ status: "ok" });
   })
   .route("/api/tasks", tasks)
-  // Catch-all for undefined API routes (must be before static middleware)
-  .all("/api/*", (c) => c.json({ error: "Not found" }, 404))
-  // Serve static files from dist/ in production
-  .use("/*", serveStatic({ root: "./dist" }))
-  // Fallback to index.html for SPA routing
-  .get("/*", serveStatic({ root: "./dist", path: "index.html" }));
+  // Catch-all for undefined API routes
+  .all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
-export { app };
-export type AppType = typeof app;
+/**
+ * Create full app with static file serving.
+ * 
+ * @param staticRoot - Path to static files (relative to cwd).
+ *   - Dev: "./dist" (relative to ui/)
+ *   - Prod: Uses OVERSEER_UI_STATIC_ROOT env var, fallback "./static"
+ */
+export function createApp(staticRoot?: string) {
+  const root = staticRoot ?? process.env.OVERSEER_UI_STATIC_ROOT ?? "./static";
+  
+  return new Hono()
+    .route("/", api)
+    // Serve static files
+    .use("/*", serveStatic({ root }))
+    // Fallback to index.html for SPA routing
+    .get("/*", serveStatic({ root, path: "index.html" }));
+}
+
+export { api };
+
+// Export AppType based on createApp return type
+export type AppType = ReturnType<typeof createApp>;

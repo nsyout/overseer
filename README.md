@@ -98,8 +98,8 @@ return { milestone, login };
 ```javascript
 tasks.create({ description, context?, parentId?, priority?, blockedBy? })
 tasks.get(id)           // Returns TaskWithContext
-tasks.list({ parentId?, ready?, completed? })
-tasks.update(id, { description?, context?, priority? })
+tasks.list({ parentId?, ready?, completed?, depth? })
+tasks.update(id, { description?, context?, priority?, parentId? })
 tasks.start(id)
 tasks.complete(id, { result?, learnings? })  // Learnings bubble to immediate parent
 tasks.reopen(id)
@@ -147,7 +147,7 @@ const subtask = await tasks.get(subtaskId);
 os task create -d "description" [--context "..."] [--parent ID] [--priority 1-5]
 os task get <id>
 os task list [--parent ID] [--ready] [--completed]
-os task update <id> [-d "..."] [--context "..."] [--priority N]
+os task update <id> [-d "..."] [--context "..."] [--priority N] [--parent ID]
 os task start <id>
 os task complete <id> [--result "..."] [--learning "..."]...
 os task reopen <id>
@@ -170,14 +170,17 @@ os vcs commit -m "message"
 
 # Data
 os data export [-o file.json]
-os data import <file.json> [--clear]
 ```
 
-## Task Viewer (Dev Only)
+## Task Viewer
 
-Web UI for viewing tasks. Requires cloning the repo:
+Web UI for viewing tasks:
 
 ```bash
+# Via CLI (after installing)
+os ui
+
+# Or from repo (development)
 cd ui && npm install && npm run dev
 # Opens http://localhost:5173
 ```

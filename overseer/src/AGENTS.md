@@ -7,8 +7,8 @@ Rust CLI source. All business logic - MCP wrapper just spawns and parses JSON.
 | Module | Purpose | Key Files |
 |--------|---------|-----------|
 | `commands/` | CLI subcommand handlers | task.rs, learning.rs, vcs.rs, data.rs |
-| `core/` | Business logic layer | task_service.rs (1407), workflow_service.rs (816), context.rs (480) |
-| `db/` | SQLite persistence | schema.rs, task_repo.rs (388), learning_repo.rs |
+| `core/` | Business logic layer | task_service.rs (1471), workflow_service.rs (1208), context.rs (481) |
+| `db/` | SQLite persistence | schema.rs, task_repo.rs (502), learning_repo.rs (282) |
 | `vcs/` | Native VCS backends | jj.rs (754), git.rs (854), detection.rs |
 
 ## ENTRY POINTS
@@ -48,7 +48,7 @@ main.rs (clap parse)
 
 | File | Lines | Key Algorithms |
 |------|-------|----------------|
-| `core/task_service.rs` | 1407 | DFS cycles, next_ready, resolve_start_target |
-| `core/workflow_service.rs` | 816 | Complete with learnings, bubble_up_completion |
+| `core/task_service.rs` | 1471 | DFS cycles, next_ready, resolve_start_target |
+| `core/workflow_service.rs` | 1208 | Complete with learnings, bubble_up_completion |
 | `vcs/git.rs` | 854 | squash(), rebase_onto() |
 | `vcs/jj.rs` | 754 | commit(), squash() with rebase_descendants |
