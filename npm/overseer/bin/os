@@ -166,6 +166,9 @@ Examples:
   process.env.PORT = String(port);
   process.env.NODE_ENV = "production";
   
+  // Preserve original cwd for CLI calls (must happen before chdir)
+  process.env.OVERSEER_CLI_CWD = process.cwd();
+  
   // Static files are in dist/ui/static/ relative to package root
   const uiDir = join(__dirname, "..", "dist", "ui");
   process.env.OVERSEER_UI_STATIC_ROOT = join(uiDir, "static");
