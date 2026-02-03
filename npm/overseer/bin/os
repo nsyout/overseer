@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Unified CLI entry point
- * - `os mcp` → starts MCP server (Node, codemode)
- * - `os <cmd>` → forwards to native binary
+ * 
+ * Delegates all commands to the native binary.
+ * The native binary handles spawning Node for `ui` and `mcp` commands.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { execSync, spawn } from "node:child_process";
@@ -71,137 +72,22 @@ function getBinaryPath() {
 }
 
 const args = process.argv.slice(2);
-const command = args[0];
 
-// Handle `os mcp` - start MCP server
-if (command === "mcp") {
-  const binaryPath = getBinaryPath();
-  process.env.OVERSEER_CLI_PATH = binaryPath;
+// All commands delegate to the native binary
+// The binary handles `ui` and `mcp` by spawning Node with the host package
+const child = spawn(getBinaryPath(), args, {
+  stdio: "inherit",
+});
 
-  const serverPath = join(__dirname, "..", "dist", "index.js");
-  import(serverPath).catch((err) => {
-    console.error("Failed to start MCP server:", err.message);
-    process.exit(1);
-  });
-}
-// Handle `os ui` - start Task Viewer webapp
-else if (command === "ui") {
-  startUiServer(args.slice(1));
-}
-// All other commands - passthrough to native binary
-else {
-  const child = spawn(getBinaryPath(), args, {
-    stdio: "inherit",
-  });
+child.on("error", (err) => {
+  console.error(`Failed to run os: ${err.message}`);
+  process.exit(1);
+});
 
-  child.on("error", (err) => {
-    console.error(`Failed to run os: ${err.message}`);
-    process.exit(1);
-  });
-
-  child.on("exit", (code, signal) => {
-    if (signal) {
-      process.kill(process.pid, signal);
-    } else {
-      process.exit(code ?? 0);
-    }
-  });
-}
-
-/**
- * Start the UI server
- * Usage: os ui [port] [--port PORT] [--no-open]
- */
-function startUiServer(uiArgs) {
-  // Parse args: positional port, --port flag, --no-open flag
-  let port = null;
-  let openBrowser = true;  // Default: open browser
-
-  for (let i = 0; i < uiArgs.length; i++) {
-    const arg = uiArgs[i];
-    if (arg === "--port" && i + 1 < uiArgs.length) {
-      port = parseInt(uiArgs[++i], 10);
-    } else if (arg === "--no-open") {
-      openBrowser = false;
-    } else if (arg === "--help" || arg === "-h") {
-      console.log(`Usage: os ui [port] [--port PORT] [--no-open]
-
-Options:
-  port          Port number (positional, default: 6969)
-  --port PORT   Port number (explicit flag)
-  --no-open     Don't open browser automatically
-
-Examples:
-  os ui              # Start and open browser
-  os ui 8080         # Port 8080, open browser
-  os ui --port 3000  # Port 3000, open browser
-  os ui --no-open    # Start without opening browser`);
-      process.exit(0);
-    } else if (/^\d+$/.test(arg) && port === null) {
-      // Positional port number
-      port = parseInt(arg, 10);
-    }
+child.on("exit", (code, signal) => {
+  if (signal) {
+    process.kill(process.pid, signal);
+  } else {
+    process.exit(code ?? 0);
   }
-
-  // Port precedence: --port > positional > PORT env > 6969
-  if (port === null && process.env.PORT) {
-    port = parseInt(process.env.PORT, 10);
-  }
-  if (port === null || isNaN(port)) {
-    port = 6969;
-  }
-
-  // Graceful shutdown handler
-  const shutdown = () => {
-    process.stdout.write('\x1b[0m');  // Reset terminal attributes
-    console.log('\nServer stopped');
-    process.exit(0);
-  };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
-
-  // Set up environment for the UI server
-  const binaryPath = getBinaryPath();
-  process.env.OVERSEER_CLI_PATH = binaryPath;
-  process.env.PORT = String(port);
-  process.env.NODE_ENV = "production";
-  
-  // Preserve original cwd for CLI calls (must happen before chdir)
-  process.env.OVERSEER_CLI_CWD = process.cwd();
-  
-  // Static files are in dist/ui/static/ relative to package root
-  const uiDir = join(__dirname, "..", "dist", "ui");
-  process.env.OVERSEER_UI_STATIC_ROOT = join(uiDir, "static");
-
-  // Change cwd to ui dir (serveStatic needs relative path from cwd)
-  process.chdir(uiDir);
-
-  const serverPath = join(uiDir, "server.js");
-  
-  if (!existsSync(serverPath)) {
-    console.error("UI server not found. The package may not have been built correctly.");
-    console.error(`Expected: ${serverPath}`);
-    process.exit(1);
-  }
-
-  // Open browser after server starts (default behavior)
-  if (openBrowser) {
-    // Delay to let server start
-    setTimeout(() => {
-      const url = `http://localhost:${port}`;
-      const openCmd =
-        platform === "darwin" ? "open" :
-        platform === "win32" ? "start" : "xdg-open";
-      try {
-        execSync(`${openCmd} ${url}`, { stdio: "ignore" });
-      } catch {
-        // Ignore errors (e.g., no display)
-      }
-    }, 500);
-  }
-
-  import(serverPath).catch((err) => {
-    console.error("Failed to start UI server:", err.message);
-    process.exit(1);
-  });
-}
+});

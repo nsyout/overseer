@@ -1,5 +1,6 @@
 use std::io;
 use std::path::PathBuf;
+use std::process::{Command as StdCommand, Stdio};
 
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
@@ -109,6 +110,177 @@ Usually runs automatically on first command.
 "#
     )]
     Init,
+
+    /// Start the Task Viewer UI server
+    #[command(
+        about = "Start Task Viewer UI",
+        long_about = r#"
+Start the Overseer Task Viewer web UI.
+
+Opens a local HTTP server for viewing and managing tasks in your browser.
+The server runs until interrupted (Ctrl+C).
+
+Requires Node.js and the @overseer/host package.
+"#
+    )]
+    Ui {
+        /// HTTP port (default: 6969)
+        #[arg(long, short, default_value = "6969")]
+        port: u16,
+    },
+
+    /// Start the MCP server (for AI agents)
+    #[command(
+        about = "Start MCP server",
+        long_about = r#"
+Start the Overseer MCP (Model Context Protocol) server.
+
+The MCP server communicates over stdio and provides a codemode API
+for AI agents to manage tasks programmatically.
+
+Requires Node.js and the @overseer/host package.
+"#
+    )]
+    Mcp,
+}
+
+/// Run the Node host server for UI or MCP mode.
+///
+/// Resolves paths relative to the binary location and spawns Node.
+fn run_host_server(mode: &str, port: u16) {
+    // Get path to current executable
+    let exe_path = std::env::current_exe().unwrap_or_else(|e| {
+        eprintln!("Error: cannot determine executable path: {}", e);
+        std::process::exit(1);
+    });
+
+    // CLI path is the current executable
+    let cli_path = exe_path.to_string_lossy().to_string();
+
+    // Working directory for CLI commands
+    let cwd = std::env::current_dir().unwrap_or_else(|e| {
+        eprintln!("Error: cannot determine current directory: {}", e);
+        std::process::exit(1);
+    });
+
+    // Find the host package relative to the binary
+    // In dev: binary is at target/release/os, host is at ../../../host/dist/index.js
+    // In npm: binary is at bin/os-{platform}, host is at ../host/dist/index.js
+    let host_script = find_host_script(&exe_path).unwrap_or_else(|| {
+        eprintln!("Error: cannot find @overseer/host package");
+        eprintln!("Make sure Node.js is installed and run: npm install -g overseer");
+        std::process::exit(1);
+    });
+
+    // For UI mode, we also need to find the static files
+    let static_root = if mode == "ui" {
+        find_static_root(&exe_path).unwrap_or_else(|| {
+            eprintln!("Error: cannot find UI static files");
+            eprintln!("Make sure the UI has been built: cd ui && npm run build");
+            std::process::exit(1);
+        })
+    } else {
+        String::new()
+    };
+
+    // Build arguments for Node
+    let mut args = vec![
+        host_script.clone(),
+        mode.to_string(),
+        "--cli-path".to_string(),
+        cli_path,
+        "--cwd".to_string(),
+        cwd.to_string_lossy().to_string(),
+    ];
+
+    if mode == "ui" {
+        args.push("--static-root".to_string());
+        args.push(static_root);
+        args.push("--port".to_string());
+        args.push(port.to_string());
+    }
+
+    // Spawn Node and wait for it
+    let status = StdCommand::new("node")
+        .args(&args)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status();
+
+    match status {
+        Ok(s) => {
+            if !s.success() {
+                std::process::exit(s.code().unwrap_or(1));
+            }
+        }
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                eprintln!("Error: Node.js not found. Please install Node.js.");
+            } else {
+                eprintln!("Error: failed to run Node.js: {}", e);
+            }
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Find the host script relative to the binary.
+/// Tries multiple locations for dev vs production installs.
+fn find_host_script(exe_path: &PathBuf) -> Option<String> {
+    let exe_dir = exe_path.parent()?;
+
+    // Candidate paths (relative to binary location)
+    let candidates = [
+        // Dev: binary at overseer/target/release/os
+        exe_dir.join("../../../host/dist/index.js"),
+        // npm: binary in @dmmulroy/overseer-{platform}/, host in @dmmulroy/overseer/host/
+        // node_modules/@dmmulroy/overseer-darwin-arm64/os -> node_modules/@dmmulroy/overseer/host/dist/index.js
+        exe_dir.join("../@dmmulroy/overseer/host/dist/index.js"),
+        exe_dir.join("../overseer/host/dist/index.js"),
+        // npm global with different layout
+        exe_dir.join("../../@dmmulroy/overseer/host/dist/index.js"),
+        // Local development with npm link
+        exe_dir.join("../../../../host/dist/index.js"),
+    ];
+
+    for candidate in &candidates {
+        if let Ok(path) = candidate.canonicalize() {
+            if path.exists() {
+                return Some(path.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    None
+}
+
+/// Find the static root for UI files.
+fn find_static_root(exe_path: &PathBuf) -> Option<String> {
+    let exe_dir = exe_path.parent()?;
+
+    // Candidate paths (relative to binary location)
+    let candidates = [
+        // Dev: binary at overseer/target/release/os
+        exe_dir.join("../../../ui/dist"),
+        // npm: binary in @dmmulroy/overseer-{platform}/, ui in @dmmulroy/overseer/ui/
+        exe_dir.join("../@dmmulroy/overseer/ui/dist"),
+        exe_dir.join("../overseer/ui/dist"),
+        // npm global with different layout
+        exe_dir.join("../../@dmmulroy/overseer/ui/dist"),
+        // Local development
+        exe_dir.join("../../../../ui/dist"),
+    ];
+
+    for candidate in &candidates {
+        if let Ok(path) = candidate.canonicalize() {
+            if path.exists() && path.join("index.html").exists() {
+                return Some(path.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    None
 }
 
 /// Determine the default database path, anchored to the VCS root if found.
@@ -138,6 +310,16 @@ fn main() {
     // PRECONDITION: Completions bypass normal output flow - raw shell script to stdout
     if let Command::Completions { shell } = &cli.command {
         generate(*shell, &mut Cli::command(), "os", &mut io::stdout());
+        return;
+    }
+
+    // PRECONDITION: UI and MCP spawn Node processes, bypass normal run()
+    if let Command::Ui { port } = &cli.command {
+        run_host_server("ui", *port);
+        return;
+    }
+    if let Command::Mcp = &cli.command {
+        run_host_server("mcp", 0);
         return;
     }
 
@@ -247,6 +429,9 @@ fn run(command: &Command, db_path: &PathBuf) -> error::Result<String> {
         }
         // PRECONDITION: Completions handled in main() before run() is called
         Command::Completions { .. } => unreachable!("completions handled before run()"),
+        // PRECONDITION: UI and MCP handled in main() before run() is called
+        Command::Ui { .. } => unreachable!("ui handled before run()"),
+        Command::Mcp => unreachable!("mcp handled before run()"),
     }
 }
 
