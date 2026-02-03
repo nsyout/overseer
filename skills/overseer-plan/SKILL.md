@@ -21,7 +21,7 @@ Use `/overseer-plan` to convert any markdown planning document into trackable Ov
 
 ```
 /overseer-plan <markdown-file-path>
-/overseer-plan <file> --priority 3           # Set priority (1-5)
+/overseer-plan <file> --priority 1           # Set priority (0-2, 0=highest)
 /overseer-plan <file> --parent <task-id>     # Create as child of existing task
 ```
 

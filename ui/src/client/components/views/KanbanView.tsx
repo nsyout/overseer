@@ -47,6 +47,7 @@ interface KanbanViewProps {
   externalBlockers: Map<TaskId, Task>;
   selectedId: TaskId | null;
   onSelect: (id: TaskId) => void;
+  nextUpTaskId: TaskId | null;
 }
 
 export function KanbanView({
@@ -54,6 +55,7 @@ export function KanbanView({
   externalBlockers,
   selectedId,
   onSelect,
+  nextUpTaskId,
 }: KanbanViewProps) {
   const scopeProps = useKeyboardScope("kanban", { activateOnMount: true });
   const changedTaskIds = useChangedTasks(tasks);
@@ -318,6 +320,7 @@ export function KanbanView({
               changedTaskIds={changedTaskIds}
               childCounts={childCounts}
               externalBlockerCounts={externalBlockerCounts}
+              nextUpTaskId={nextUpTaskId}
               onCardRef={handleCardRef}
               onClick={handleTaskClick}
             />
@@ -345,6 +348,7 @@ interface KanbanColumnProps {
   changedTaskIds: Set<TaskId>;
   childCounts: Map<TaskId, { total: number; completed: number }>;
   externalBlockerCounts: Map<TaskId, number>;
+  nextUpTaskId: TaskId | null;
   onCardRef: (id: TaskId, el: HTMLButtonElement | null) => void;
   onClick: (task: Task, columnIndex: number, taskIndex: number) => void;
 }
@@ -359,6 +363,7 @@ function KanbanColumn({
   changedTaskIds,
   childCounts,
   externalBlockerCounts,
+  nextUpTaskId,
   onCardRef,
   onClick,
 }: KanbanColumnProps) {
@@ -418,6 +423,7 @@ function KanbanColumn({
                   isChanged={isChanged}
                   childCount={childCounts.get(task.id)}
                   externalBlockerCount={externalBlockerCounts.get(task.id) ?? 0}
+                  isNextUp={task.id === nextUpTaskId}
                   onRef={onCardRef}
                   onClick={onClick}
                 />
@@ -441,6 +447,7 @@ interface KanbanCardProps {
   isChanged: boolean;
   childCount?: { total: number; completed: number };
   externalBlockerCount: number;
+  isNextUp: boolean;
   onRef: (id: TaskId, el: HTMLButtonElement | null) => void;
   onClick: (task: Task, columnIndex: number, taskIndex: number) => void;
 }
@@ -455,6 +462,7 @@ function KanbanCard({
   isChanged,
   childCount,
   externalBlockerCount,
+  isNextUp,
   onRef,
   onClick,
 }: KanbanCardProps) {
@@ -496,8 +504,11 @@ function KanbanCard({
               {formatRelativeTime(new Date(task.updatedAt))}
             </span>
             <span className="text-[10px] font-mono text-text-dim">
-              P{task.priority}
+              p{task.priority}
             </span>
+            {isNextUp && (
+              <Badge variant="nextUp">Next Up</Badge>
+            )}
           </div>
         </div>
 

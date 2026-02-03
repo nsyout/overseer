@@ -19,7 +19,7 @@ import {
 import { Button } from "./ui/Button.js";
 import { Textarea } from "./ui/Textarea.js";
 import { Kbd } from "./ui/Kbd.js";
-import type { TaskWithContext, TaskId, Learning } from "../../types.js";
+import type { TaskWithContext, TaskId, Learning, Priority } from "../../types.js";
 
 interface TaskDetailProps {
   task: TaskWithContext;
@@ -75,6 +75,7 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [completeResult, setCompleteResult] = useState("");
   const [copied, setCopied] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const scopeProps = useKeyboardScope("detail");
   const { data: learnings } = useLearnings(task.id);
@@ -88,28 +89,45 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
   const isBlocked = task.effectivelyBlocked && !task.completed;
 
   const startEdit = useCallback((mode: EditMode, val: string) => {
+    setEditError(null);
     setEditMode(mode);
     setEditValue(val);
   }, []);
 
   const cancelEdit = useCallback(() => {
+    setEditError(null);
     setEditMode("none");
     setEditValue("");
   }, []);
 
+  const parsePriority = (s: string): Priority | null => {
+    const n = Number(s);
+    if (!Number.isInteger(n)) return null;
+    if (n === 0 || n === 1 || n === 2) return n;
+    return null;
+  };
+
   const saveEdit = useCallback(() => {
     if (editMode === "none") return;
 
+    setEditError(null);
     const data: Record<string, unknown> = {};
     if (editMode === "description") {
       data.description = editValue;
     } else if (editMode === "context") {
       data.context = editValue;
     } else if (editMode === "priority") {
-      const priority = parseInt(editValue, 10);
-      if (priority >= 1 && priority <= 5) {
-        data.priority = priority;
+      const priority = parsePriority(editValue);
+      if (priority === null) {
+        setEditError("Priority must be 0, 1, or 2");
+        return;
       }
+      data.priority = priority;
+    }
+
+    if (Object.keys(data).length === 0) {
+      setEditError("No changes to save");
+      return;
     }
 
     updateTask.mutate(
@@ -317,25 +335,30 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
           <dt className={label()}>Priority</dt>
           <dd>
             {editMode === "priority" ? (
-              <EditField
-                value={editValue}
-                onChange={setEditValue}
-                onSave={saveEdit}
-                onCancel={cancelEdit}
-                type="number"
-                min={1}
-                max={5}
-                saving={updateTask.isPending}
-              />
+              <div className="space-y-1">
+                <EditField
+                  value={editValue}
+                  onChange={setEditValue}
+                  onSave={saveEdit}
+                  onCancel={cancelEdit}
+                  type="number"
+                  min={0}
+                  max={2}
+                  saving={updateTask.isPending}
+                />
+                {editError && (
+                  <p className="font-mono text-xs text-status-blocked">{editError}</p>
+                )}
+              </div>
             ) : (
               <button
                 type="button"
                 disabled={task.completed}
                 onClick={() => startEdit("priority", String(task.priority))}
                 className={`${value()} text-left p-0 border-0 bg-transparent cursor-pointer hover:text-accent transition-colors motion-reduce:transition-none disabled:cursor-default disabled:hover:text-text-primary`}
-                title={task.completed ? undefined : "Click to edit (1-5)"}
+                title={task.completed ? undefined : "Click to edit (0-2)"}
               >
-                P{task.priority}
+                p{task.priority}
               </button>
             )}
           </dd>

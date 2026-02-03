@@ -10,6 +10,7 @@ interface GraphViewProps {
   externalBlockers: Map<TaskId, Task>;
   selectedId: TaskId | null;
   onSelect: (id: TaskId) => void;
+  nextUpTaskId: TaskId | null;
 }
 
 export function GraphView({
@@ -17,6 +18,7 @@ export function GraphView({
   externalBlockers,
   selectedId,
   onSelect,
+  nextUpTaskId,
 }: GraphViewProps) {
   return (
     <div className="flex-1 flex bg-bg-primary min-h-0">
@@ -26,6 +28,7 @@ export function GraphView({
         selectedId={selectedId}
         onSelect={onSelect}
         showBlockers={externalBlockers.size > 0}
+        nextUpTaskId={nextUpTaskId}
       />
     </div>
   );

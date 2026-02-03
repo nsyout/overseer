@@ -186,7 +186,7 @@ mod tests {
                 description: "Task 1".to_string(),
                 context: Some("Context 1".to_string()),
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -196,7 +196,7 @@ mod tests {
                 description: "Task 2".to_string(),
                 context: Some("Context 2".to_string()),
                 parent_id: Some(task1.id.clone()),
-                priority: Some(3),
+                priority: Some(1),
                 blocked_by: vec![],
             })
             .unwrap();

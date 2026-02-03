@@ -20,7 +20,7 @@ interface Task {
   id: string;
   parentId: string | null;
   description: string;
-  priority: 1 | 2 | 3 | 4 | 5;
+  priority: 0 | 1 | 2;
   completed: boolean;
   completedAt: string | null;
   startedAt: string | null;
@@ -72,13 +72,13 @@ declare const tasks: {
     description: string;
     context?: string;
     parentId?: string;
-    priority?: 1 | 2 | 3 | 4 | 5;
+    priority?: 0 | 1 | 2;
     blockedBy?: string[];
   }): Promise<Task>;
   update(id: string, input: {
     description?: string;
     context?: string;
-    priority?: 1 | 2 | 3 | 4 | 5;
+    priority?: 0 | 1 | 2;
     parentId?: string;
   }): Promise<Task>;
   start(id: string): Promise<Task>;  // VCS required: creates bookmark, records start commit

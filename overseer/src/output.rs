@@ -243,11 +243,11 @@ impl Printer {
                 }
                 if let Some(priority) = task.get("priority").and_then(|v| v.as_i64()) {
                     let priority_style = match priority {
-                        1 | 2 => self.colors.priority_high,
-                        3 => self.colors.priority_med,
+                        0 => self.colors.priority_high,
+                        1 => self.colors.priority_med,
                         _ => Style::new(),
                     };
-                    println!("  Priority: {}", priority.style(priority_style));
+                    println!("  Priority: p{}", priority.style(priority_style));
                 }
                 if let Some(depth) = task.get("depth").and_then(|v| v.as_i64()) {
                     println!("  Depth: {}", depth);
@@ -470,12 +470,12 @@ impl Printer {
                 .iter()
                 .filter_map(|cid| build_node(cid, task_map, children_map))
                 .collect();
-            // Sort: incomplete first, then priority DESC, created_at ASC, id ASC (deterministic)
+            // Sort: incomplete first, then priority ASC (p0 first), created_at ASC, id ASC (deterministic)
             children.sort_by(|a, b| {
                 a.task
                     .completed
                     .cmp(&b.task.completed)
-                    .then_with(|| b.task.priority.cmp(&a.task.priority))
+                    .then_with(|| a.task.priority.cmp(&b.task.priority))
                     .then_with(|| a.task.created_at.cmp(&b.task.created_at))
                     .then_with(|| a.task.id.cmp(&b.task.id))
             });
@@ -489,13 +489,13 @@ impl Printer {
             .filter_map(|id| build_node(id, &mut task_map, &children_map))
             .collect();
 
-        // Sort roots: incomplete first, depth ASC (milestones first), priority DESC, created_at ASC, id ASC
+        // Sort roots: incomplete first, depth ASC (milestones first), priority ASC (p0 first), created_at ASC, id ASC
         roots.sort_by(|a, b| {
             a.task
                 .completed
                 .cmp(&b.task.completed)
                 .then_with(|| a.task.depth.cmp(&b.task.depth))
-                .then_with(|| b.task.priority.cmp(&a.task.priority))
+                .then_with(|| a.task.priority.cmp(&b.task.priority))
                 .then_with(|| a.task.created_at.cmp(&b.task.created_at))
                 .then_with(|| a.task.id.cmp(&b.task.id))
         });
@@ -609,8 +609,8 @@ impl Printer {
             };
 
             let priority_style = match task.priority {
-                1 | 2 => self.colors.priority_high,
-                3 => self.colors.priority_med,
+                0 => self.colors.priority_high,
+                1 => self.colors.priority_med,
                 _ => Style::new(),
             };
 
@@ -626,7 +626,7 @@ impl Printer {
             if let Some(ref result) = task.result {
                 println!("  Result: {}", result);
             }
-            println!("  Priority: {}", task.priority.style(priority_style));
+            println!("  Priority: p{}", task.priority.style(priority_style));
             if let Some(depth) = task.depth {
                 println!("  Depth: {}", depth);
             }

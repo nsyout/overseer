@@ -11,6 +11,7 @@ interface ListViewProps {
   externalBlockers: Map<TaskId, Task>;
   selectedId: TaskId | null;
   onSelect: (id: TaskId) => void;
+  nextUpTaskId: TaskId | null;
 }
 
 export function ListView({
@@ -18,6 +19,7 @@ export function ListView({
   externalBlockers,
   selectedId,
   onSelect,
+  nextUpTaskId,
 }: ListViewProps) {
   return (
     <div className="flex-1 flex bg-bg-primary">
@@ -27,6 +29,7 @@ export function ListView({
           externalBlockers={externalBlockers}
           selectedId={selectedId}
           onSelect={onSelect}
+          nextUpTaskId={nextUpTaskId}
         />
       </div>
     </div>

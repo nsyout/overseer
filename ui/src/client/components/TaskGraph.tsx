@@ -40,6 +40,7 @@ interface TaskNodeData extends Record<string, unknown> {
   isCollapsed: boolean;
   hiddenDescendantCount: number;
   isFocused: boolean;
+  isNextUp: boolean;
   onToggleCollapse: (id: TaskId) => void;
 }
 
@@ -69,6 +70,7 @@ interface TaskGraphProps {
   selectedId: TaskId | null;
   onSelect: (id: TaskId) => void;
   showBlockers?: boolean;
+  nextUpTaskId: TaskId | null;
 }
 
 // Virtual root node ID (not rendered)
@@ -261,6 +263,7 @@ function buildGraphElements(
       isCollapsed: collapsedIds.has(task.id),
       hiddenDescendantCount: hiddenDescendantCounts.get(task.id) ?? 0,
       isFocused: false, // Applied in separate memo
+      isNextUp: false, // Applied in separate memo
       onToggleCollapse: () => {}, // Applied in separate memo
     },
   }));
@@ -401,6 +404,7 @@ const TaskNodeComponent = memo(function TaskNodeComponent({
     isCollapsed,
     hiddenDescendantCount,
     isFocused,
+    isNextUp,
     onToggleCollapse,
   } = data;
 
@@ -491,10 +495,15 @@ const TaskNodeComponent = memo(function TaskNodeComponent({
               {depthLabel}
             </span>
           </div>
-          {/* Priority */}
-          <span className="text-[10px] font-mono text-text-dim whitespace-nowrap">
-            P{task.priority}
-          </span>
+          {/* Priority + Next Up */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-mono text-text-dim whitespace-nowrap">
+              p{task.priority}
+            </span>
+            {isNextUp && (
+              <Badge variant="nextUp">Next Up</Badge>
+            )}
+          </div>
         </div>
 
         {/* Body (flexible area - only this truncates) */}
@@ -922,6 +931,7 @@ export function TaskGraph({
   selectedId,
   onSelect,
   showBlockers = false,
+  nextUpTaskId,
 }: TaskGraphProps) {
   // Claim keyboard scope at TaskGraph level (not GraphNavigation) because
   // GraphNavigation is renderless and can't receive pointer/focus events
@@ -1002,11 +1012,12 @@ export function TaskGraph({
           data: {
             ...n.data,
             isFocused: n.data.task.id === focusedId,
+            isNextUp: n.data.task.id === nextUpTaskId,
             onToggleCollapse: handleToggleCollapse,
           },
         };
       }),
-    [layoutedNodes, selectedId, focusedId, handleToggleCollapse]
+    [layoutedNodes, selectedId, focusedId, nextUpTaskId, handleToggleCollapse]
   );
 
   // Handle node click via onNodeClick (not stored in node data)

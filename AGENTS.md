@@ -103,6 +103,13 @@ Types must stay in sync between `overseer/src/types.rs`, `overseer/src/core/cont
 
 **Note:** The `InheritedLearnings` type in `overseer/src/types.rs` (with only `milestone` and `parent`) is for import/export schema compatibility. The actual runtime type used for `TaskWithContext` is in `context.rs` and includes `own`.
 
+**When changing constrained types (e.g., Priority range):**
+1. Rust: `types.rs`, validation in `task_service.rs`, CLI args in `commands/task.rs`
+2. TypeScript types: `generated/types.ts`, `host/src/types.ts`, `ui/src/types.ts`
+3. TypeScript decoders: `host/src/decoder.ts`, `ui/src/decoder.ts`
+4. TypeScript API interfaces: `host/src/api/tasks.ts`, `host/src/ui.ts`
+5. UI input constraints: Any `min/max` on number inputs
+
 ## CONVENTIONS
 
 - **Result everywhere**: All fallible ops return `Result<T, E>`
@@ -118,6 +125,7 @@ Types must stay in sync between `overseer/src/types.rs`, `overseer/src/core/cont
 - Never skip cycle detection - DFS in `task_service.rs`
 - Never bypass CASCADE delete invariant
 - Never use depth limit for cycle detection (use DFS)
+- **Falsy-0 bug**: `if (value)` fails for valid 0 - use `if (value !== undefined)` when passing optional numbers to CLI
 
 ## DESIGN INVARIANTS
 

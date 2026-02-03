@@ -152,7 +152,7 @@ const tasks = new Hono()
     const args = ["task", "update", id];
     if (body.description) args.push("-d", body.description);
     if (body.context) args.push("--context", body.context);
-    if (body.priority) args.push("--priority", String(body.priority));
+    if (body.priority !== undefined) args.push("--priority", String(body.priority));
 
     // Must have at least one field to update
     if (args.length === 3) {

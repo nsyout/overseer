@@ -45,7 +45,7 @@ interface Task {
   id: string;                   // ULID (task_01JQAZ...)
   parentId: string | null;
   description: string;
-  priority: number;             // 1-5 (default: 3)
+  priority: number;             // 0-2 (p0=highest, p1=default, p2=lowest)
   completed: boolean;
   completedAt: string | null;
   startedAt: string | null;
@@ -125,7 +125,7 @@ tasks.create(input: {
   description: string;
   context?: string;
   parentId?: string;          // Makes this a subtask
-  priority?: 1 | 2 | 3 | 4 | 5;  // Default: 3
+  priority?: 0 | 1 | 2;          // Default: 1 (p0=highest)
   blockedBy?: string[];       // Task IDs
 }): Promise<Task>
 
@@ -133,7 +133,7 @@ tasks.create(input: {
 tasks.update(id: string, input: {
   description?: string;
   context?: string;
-  priority?: 1 | 2 | 3 | 4 | 5;  // 1-5 (not 1-10)
+  priority?: 0 | 1 | 2;          // 0-2 (p0=highest)
   parentId?: string;
 }): Promise<Task>
 
@@ -182,20 +182,20 @@ learnings.list(taskId: string): Promise<Learning[]>
 const milestone = await tasks.create({
   description: "Implement user authentication",
   context: "JWT-based auth with refresh tokens, bcrypt for passwords",
-  priority: 5
+  priority: 0  // p0 = highest
 });
 
 // Create subtasks
 const loginTask = await tasks.create({
   description: "Add login endpoint",
   parentId: milestone.id,
-  priority: 4
+  priority: 0  // p0 = highest
 });
 
 const signupTask = await tasks.create({
   description: "Add signup endpoint", 
   parentId: milestone.id,
-  priority: 3,
+  priority: 1,  // p1 = default
   blockedBy: [loginTask.id]  // Blocked until login done
 });
 

@@ -11,7 +11,7 @@ interface Task {
   id: string;
   parentId: string | null;
   description: string;
-  priority: 1 | 2 | 3 | 4 | 5;
+  priority: 0 | 1 | 2;
   completed: boolean;
   completedAt: string | null;
   startedAt: string | null;
@@ -87,13 +87,13 @@ declare const tasks: {
     description: string;
     context?: string;
     parentId?: string;
-    priority?: 1 | 2 | 3 | 4 | 5;  // Must be 1-5
+    priority?: 0 | 1 | 2;  // p0=highest, p1=default, p2=lowest
     blockedBy?: string[];          // Cannot be ancestors/descendants
   }): Promise<Task>;
   update(id: string, input: {
     description?: string;
     context?: string;
-    priority?: 1 | 2 | 3 | 4 | 5;
+    priority?: 0 | 1 | 2;
     parentId?: string;
   }): Promise<Task>;
   start(id: string): Promise<Task>;
@@ -113,7 +113,7 @@ declare const tasks: {
 |--------|---------|-------------|
 | `list` | `Task[]` | Filter by `parentId`, `ready`, `completed`, `depth`, `type` |
 | `get` | `TaskWithContext` | Get task with full context chain + inherited learnings |
-| `create` | `Task` | Create task (priority must be 1-5) |
+| `create` | `Task` | Create task (priority must be 0-2) |
 | `update` | `Task` | Update description, context, priority, parentId |
 | `start` | `Task` | **VCS required** - creates bookmark, records start commit |
 | `complete` | `Task` | **VCS required** - commits changes + bubbles learnings to parent |

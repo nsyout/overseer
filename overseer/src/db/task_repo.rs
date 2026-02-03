@@ -64,7 +64,7 @@ pub fn create_task(conn: &Connection, input: &CreateTaskInput) -> Result<Task> {
             input.parent_id.as_ref(),
             input.description,
             input.context.as_deref().unwrap_or(""),
-            input.priority.unwrap_or(3),
+            input.priority.unwrap_or(1),
             now_str,
             now_str,
         ],
@@ -437,10 +437,10 @@ pub fn get_all_descendants(conn: &Connection, root_id: &TaskId) -> Result<Vec<Ta
     Ok(all_descendants)
 }
 
-/// List root tasks (milestones) ordered by priority DESC, created_at ASC, id ASC
+/// List root tasks (milestones) ordered by priority ASC (p0 first), created_at ASC, id ASC
 pub fn list_roots(conn: &Connection) -> Result<Vec<Task>> {
     let mut stmt = conn.prepare(
-        "SELECT * FROM tasks WHERE parent_id IS NULL ORDER BY priority DESC, created_at ASC, id ASC",
+        "SELECT * FROM tasks WHERE parent_id IS NULL ORDER BY priority ASC, created_at ASC, id ASC",
     )?;
     let mut tasks: Vec<Task> = stmt
         .query_map([], row_to_task)?
@@ -454,10 +454,10 @@ pub fn list_roots(conn: &Connection) -> Result<Vec<Task>> {
     Ok(tasks)
 }
 
-/// Get children ordered by priority DESC, created_at ASC, id ASC
+/// Get children ordered by priority ASC (p0 first), created_at ASC, id ASC
 pub fn get_children_ordered(conn: &Connection, parent_id: &TaskId) -> Result<Vec<Task>> {
     let mut stmt = conn.prepare(
-        "SELECT * FROM tasks WHERE parent_id = ?1 ORDER BY priority DESC, created_at ASC, id ASC",
+        "SELECT * FROM tasks WHERE parent_id = ?1 ORDER BY priority ASC, created_at ASC, id ASC",
     )?;
     let mut tasks: Vec<Task> = stmt
         .query_map(params![parent_id], row_to_task)?

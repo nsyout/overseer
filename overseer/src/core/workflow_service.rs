@@ -526,7 +526,7 @@ mod tests {
                 description: "Milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -536,7 +536,7 @@ mod tests {
                 description: "Task".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -546,7 +546,7 @@ mod tests {
                 description: "Subtask".to_string(),
                 context: None,
                 parent_id: Some(task.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -569,7 +569,7 @@ mod tests {
                 description: "Blocker task".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -579,7 +579,7 @@ mod tests {
                 description: "Blocked milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![blocker_task.id.clone()],
             })
             .unwrap();
@@ -589,7 +589,7 @@ mod tests {
                 description: "Task under blocked milestone".to_string(),
                 context: None,
                 parent_id: Some(blocked_milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -614,7 +614,7 @@ mod tests {
                 description: "Milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -624,7 +624,7 @@ mod tests {
                 description: "Task".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -634,7 +634,7 @@ mod tests {
                 description: "Subtask 1".to_string(),
                 context: None,
                 parent_id: Some(task.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -644,7 +644,7 @@ mod tests {
                 description: "Subtask 2".to_string(),
                 context: None,
                 parent_id: Some(task.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -672,7 +672,7 @@ mod tests {
                 description: "Milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -682,7 +682,7 @@ mod tests {
                 description: "Task".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -706,7 +706,7 @@ mod tests {
                 description: "Blocker".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -716,7 +716,7 @@ mod tests {
                 description: "Blocked milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![blocker.id.clone()],
             })
             .unwrap();
@@ -726,7 +726,7 @@ mod tests {
                 description: "Task".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -750,7 +750,7 @@ mod tests {
                 description: "Milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -760,7 +760,7 @@ mod tests {
                 description: "Task 1".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -770,7 +770,7 @@ mod tests {
                 description: "Task 2".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -794,7 +794,7 @@ mod tests {
                 description: "Milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -804,7 +804,7 @@ mod tests {
                 description: "Task".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -814,7 +814,7 @@ mod tests {
                 description: "Subtask 1".to_string(),
                 context: None,
                 parent_id: Some(task.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -825,7 +825,7 @@ mod tests {
                 description: "Subtask 2".to_string(),
                 context: None,
                 parent_id: Some(task.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -880,7 +880,7 @@ mod tests {
                 description: "Milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -890,7 +890,7 @@ mod tests {
                 description: "Task".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -900,7 +900,7 @@ mod tests {
                 description: "Subtask".to_string(),
                 context: None,
                 parent_id: Some(task.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -938,7 +938,7 @@ mod tests {
                 description: "Milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -948,7 +948,7 @@ mod tests {
                 description: "Task A".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -958,7 +958,7 @@ mod tests {
                 description: "Subtask A1".to_string(),
                 context: None,
                 parent_id: Some(task_a.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -968,7 +968,7 @@ mod tests {
                 description: "Subtask A2".to_string(),
                 context: None,
                 parent_id: Some(task_a.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -1003,7 +1003,7 @@ mod tests {
                 description: "Milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -1013,7 +1013,7 @@ mod tests {
                 description: "Task".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -1046,7 +1046,7 @@ mod tests {
                 description: "Milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -1056,7 +1056,7 @@ mod tests {
                 description: "Task".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -1066,7 +1066,7 @@ mod tests {
                 description: "Subtask".to_string(),
                 context: None,
                 parent_id: Some(task.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -1120,7 +1120,7 @@ mod tests {
                 description: "Blocker".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -1130,7 +1130,7 @@ mod tests {
                 description: "Blocked task".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![blocker.id.clone()],
             })
             .unwrap();
@@ -1162,7 +1162,7 @@ mod tests {
                 description: "Milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -1172,7 +1172,7 @@ mod tests {
                 description: "Task".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -1182,7 +1182,7 @@ mod tests {
                 description: "Subtask".to_string(),
                 context: None,
                 parent_id: Some(task.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -1218,7 +1218,7 @@ mod tests {
                 description: "Task".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -1245,7 +1245,7 @@ mod tests {
                 description: "Leaf milestone".to_string(),
                 context: None,
                 parent_id: None,
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();

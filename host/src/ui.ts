@@ -77,7 +77,7 @@ function isNumber(v: unknown): v is number {
 }
 
 function isPriority(v: unknown): v is Priority {
-  return isNumber(v) && v >= 1 && v <= 5 && Number.isInteger(v);
+  return v === 0 || v === 1 || v === 2;
 }
 
 /**
@@ -186,7 +186,7 @@ function createTaskRoutes() {
       const args = ["task", "update", id];
       if (body.description) args.push("-d", body.description);
       if (body.context) args.push("--context", body.context);
-      if (body.priority) args.push("--priority", String(body.priority));
+      if (body.priority !== undefined) args.push("--priority", String(body.priority));
 
       if (args.length === 3) {
         return c.json({ error: "No fields to update" }, 400);

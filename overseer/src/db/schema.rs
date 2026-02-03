@@ -2,7 +2,7 @@ use rusqlite::Connection;
 
 use crate::error::Result;
 
-const SCHEMA_VERSION: i32 = 3;
+const SCHEMA_VERSION: i32 = 4;
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
     let current_version: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
@@ -16,7 +16,7 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
                 description TEXT NOT NULL,
                 context TEXT NOT NULL DEFAULT '',
                 result TEXT,
-                priority INTEGER NOT NULL DEFAULT 3,
+                priority INTEGER NOT NULL DEFAULT 1,
                 completed INTEGER NOT NULL DEFAULT 0,
                 completed_at TEXT,
                 created_at TEXT NOT NULL,
@@ -63,8 +63,11 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
         conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     }
 
+    // Track version for sequential migrations
+    let mut version = current_version;
+
     // Migration for existing databases at version 1
-    if current_version == 1 {
+    if version == 1 {
         conn.execute_batch(
             r#"
             BEGIN;
@@ -74,11 +77,12 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             "#,
         )?;
         conn.pragma_update(None, "user_version", 2)?;
+        version = 2;
     }
 
     // Migration for version 2 -> 3: Add unique index for learning bubbling idempotency
     // Also backfill source_task_id where NULL (set to task_id as origin)
-    if current_version == 2 {
+    if version == 2 {
         conn.execute_batch(
             r#"
             BEGIN;
@@ -91,6 +95,26 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             "#,
         )?;
         conn.pragma_update(None, "user_version", 3)?;
+        version = 3;
+    }
+
+    // Migration for version 3 -> 4: Simplify priorities from 1-5 to 0-2
+    // p0 = highest (was 1), p1 = default/medium (was 2-3), p2 = lowest (was 4-5)
+    if version == 3 {
+        conn.execute_batch(
+            r#"
+            BEGIN;
+            UPDATE tasks
+            SET priority =
+              CASE
+                WHEN priority <= 1 THEN 0
+                WHEN priority <= 3 THEN 1
+                ELSE 2
+              END;
+            COMMIT;
+            "#,
+        )?;
+        conn.pragma_update(None, "user_version", 4)?;
     }
 
     Ok(())

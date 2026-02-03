@@ -47,9 +47,9 @@ function isNumber(v: unknown): v is number {
   return typeof v === "number";
 }
 
-// Helper to check valid priority
+// Helper to check valid priority (0=p0 highest, 1=p1 default, 2=p2 lowest)
 function isPriority(v: unknown): v is Priority {
-  return isNumber(v) && v >= 1 && v <= 5 && Number.isInteger(v);
+  return v === 0 || v === 1 || v === 2;
 }
 
 // Helper to check valid depth

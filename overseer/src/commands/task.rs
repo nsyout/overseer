@@ -54,7 +54,7 @@ pub struct CreateArgs {
     #[arg(long, value_parser = parse_task_id)]
     pub parent: Option<TaskId>,
 
-    #[arg(long, value_parser = clap::value_parser!(i32).range(1..=5))]
+    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=2))]
     pub priority: Option<i32>,
 
     #[arg(long = "blocked-by", value_delimiter = ',', value_parser = parse_task_id)]
@@ -101,7 +101,7 @@ pub struct UpdateArgs {
     #[arg(long)]
     pub context: Option<String>,
 
-    #[arg(long, value_parser = clap::value_parser!(i32).range(1..=5))]
+    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=2))]
     pub priority: Option<i32>,
 
     #[arg(long, value_parser = parse_task_id)]
@@ -360,10 +360,10 @@ fn build_all_trees(conn: &Connection) -> Result<Vec<TaskTree>> {
     };
     let mut milestones = svc.list(&filter)?;
 
-    // Sort by priority desc, then created_at asc
+    // Sort by priority asc (p0 first), then created_at asc
     milestones.sort_by(|a, b| {
-        b.priority
-            .cmp(&a.priority)
+        a.priority
+            .cmp(&b.priority)
             .then_with(|| a.created_at.cmp(&b.created_at))
     });
 
@@ -391,11 +391,11 @@ fn build_tree_recursive(conn: &Connection, task: Task) -> Result<TaskTree> {
         children.push(build_tree_recursive(conn, child)?);
     }
 
-    // Sort children by priority desc, then created_at asc
+    // Sort children by priority asc (p0 first), then created_at asc
     children.sort_by(|a, b| {
-        b.task
+        a.task
             .priority
-            .cmp(&a.task.priority)
+            .cmp(&b.task.priority)
             .then_with(|| a.task.created_at.cmp(&b.task.created_at))
     });
 
@@ -536,7 +536,7 @@ mod tests {
                 description: "High priority".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -578,7 +578,7 @@ mod tests {
                 description: "Blocker".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![],
             })
             .unwrap();
@@ -588,7 +588,7 @@ mod tests {
                 description: "Blocked".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(5),
+                priority: Some(0),
                 blocked_by: vec![blocker.id.clone()],
             })
             .unwrap();
@@ -598,7 +598,7 @@ mod tests {
                 description: "Ready".to_string(),
                 context: None,
                 parent_id: Some(milestone.id.clone()),
-                priority: Some(3),
+                priority: Some(1),
                 blocked_by: vec![],
             })
             .unwrap();

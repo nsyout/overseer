@@ -18,6 +18,7 @@ interface TaskListProps {
   externalBlockers: Map<TaskId, Task>;
   selectedId: TaskId | null;
   onSelect: (id: TaskId) => void;
+  nextUpTaskId: TaskId | null;
 }
 
 /**
@@ -28,6 +29,7 @@ export function TaskList({
   externalBlockers,
   selectedId,
   onSelect,
+  nextUpTaskId,
 }: TaskListProps) {
   const [filter, setFilter] = useState<FilterType>("all");
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
@@ -371,6 +373,7 @@ export function TaskList({
                 indexById={indexById}
                 changedTaskIds={changedTaskIds}
                 externalBlockerCounts={externalBlockerCounts}
+                nextUpTaskId={nextUpTaskId}
                 onSelect={onSelect}
                 onFocus={setFocusedIndex}
                 onToggleCollapse={toggleCollapse}
@@ -404,6 +407,7 @@ interface TaskTreeNodeProps {
   indexById: Map<TaskId, number>;
   changedTaskIds: Set<TaskId>;
   externalBlockerCounts: Map<TaskId, number>;
+  nextUpTaskId: TaskId | null;
   onSelect: (id: TaskId) => void;
   onFocus: (index: number) => void;
   onToggleCollapse: (id: TaskId) => void;
@@ -438,6 +442,7 @@ function TaskTreeNode({
   indexById,
   changedTaskIds,
   externalBlockerCounts,
+  nextUpTaskId,
   onSelect,
   onFocus,
   onToggleCollapse,
@@ -474,6 +479,7 @@ function TaskTreeNode({
         hasChildren={hasChildren}
         isCollapsed={isCollapsed}
         externalBlockerCount={externalBlockerCounts.get(task.id) ?? 0}
+        isNextUp={task.id === nextUpTaskId}
         onSelect={onSelect}
         onFocus={onFocus}
         onToggleCollapse={onToggleCollapse}
@@ -494,6 +500,7 @@ function TaskTreeNode({
               indexById={indexById}
               changedTaskIds={changedTaskIds}
               externalBlockerCounts={externalBlockerCounts}
+              nextUpTaskId={nextUpTaskId}
               onSelect={onSelect}
               onFocus={onFocus}
               onToggleCollapse={onToggleCollapse}
@@ -518,6 +525,7 @@ interface TaskItemProps {
   hasChildren: boolean;
   isCollapsed: boolean;
   externalBlockerCount: number;
+  isNextUp: boolean;
   onSelect: (id: TaskId) => void;
   onFocus: (index: number) => void;
   onToggleCollapse: (id: TaskId) => void;
@@ -539,6 +547,7 @@ function TaskItem({
   hasChildren,
   isCollapsed,
   externalBlockerCount,
+  isNextUp,
   onSelect,
   onFocus,
   onToggleCollapse,
@@ -668,6 +677,11 @@ function TaskItem({
           {statusLabel}
         </Badge>
 
+        {/* Next Up badge */}
+        {isNextUp && (
+          <Badge variant="nextUp">Next Up</Badge>
+        )}
+
         {/* External blockers badge (shown when filtering by milestone) */}
         {externalBlockerCount > 0 && (
           <span className="text-[10px] font-mono text-text-dim">
@@ -676,7 +690,7 @@ function TaskItem({
         )}
 
         {/* Priority */}
-        <span className="text-xs font-mono text-text-dim">P{task.priority}</span>
+        <span className="text-xs font-mono text-text-dim">p{task.priority}</span>
       </div>
     </button>
   );

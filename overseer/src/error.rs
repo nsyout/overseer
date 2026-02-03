@@ -69,7 +69,7 @@ pub enum OsError {
     #[error("Cannot complete task with pending children")]
     PendingChildren,
 
-    #[error("Invalid priority: {0} (must be 1-5)")]
+    #[error("Invalid priority: {0} (must be 0-2)")]
     InvalidPriority(i32),
 
     #[error("IO error: {0}")]

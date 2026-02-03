@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { useTasks } from "./lib/queries.js";
+import { useTasks, useNextReadyTask } from "./lib/queries.js";
 import { useUIStore, type ViewMode } from "./lib/store.js";
 import { KeyboardProvider, useKeyboardShortcuts } from "./lib/keyboard.js";
 import { useMilestoneFilter } from "./lib/use-url-filter.js";
@@ -35,6 +35,10 @@ function AppContent() {
 
   // URL-based milestone filter
   const [filterMilestoneId, setFilterMilestoneId] = useMilestoneFilter();
+
+  // Fetch next ready task (respects milestone filter)
+  const { data: nextReadyTask } = useNextReadyTask(filterMilestoneId ?? undefined);
+  const nextUpTaskId = nextReadyTask?.id ?? null;
 
   // Compute milestones (depth-0 tasks)
   const milestones = useMemo(() => {
@@ -196,6 +200,7 @@ function AppContent() {
                 externalBlockers={externalBlockers}
                 selectedId={selectedTaskId}
                 onSelect={handleTaskSelect}
+                nextUpTaskId={nextUpTaskId}
               />
             )}
           </div>
@@ -214,6 +219,7 @@ interface ViewContainerProps {
   externalBlockers: Map<TaskId, Task>;
   selectedId: TaskId | null;
   onSelect: (id: TaskId) => void;
+  nextUpTaskId: TaskId | null;
 }
 
 function ViewContainer({
@@ -222,6 +228,7 @@ function ViewContainer({
   externalBlockers,
   selectedId,
   onSelect,
+  nextUpTaskId,
 }: ViewContainerProps) {
   switch (viewMode) {
     case "graph":
@@ -231,6 +238,7 @@ function ViewContainer({
           externalBlockers={externalBlockers}
           selectedId={selectedId}
           onSelect={onSelect}
+          nextUpTaskId={nextUpTaskId}
         />
       );
     case "kanban":
@@ -240,6 +248,7 @@ function ViewContainer({
           externalBlockers={externalBlockers}
           selectedId={selectedId}
           onSelect={onSelect}
+          nextUpTaskId={nextUpTaskId}
         />
       );
     case "list":
@@ -249,6 +258,7 @@ function ViewContainer({
           externalBlockers={externalBlockers}
           selectedId={selectedId}
           onSelect={onSelect}
+          nextUpTaskId={nextUpTaskId}
         />
       );
   }

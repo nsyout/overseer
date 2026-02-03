@@ -23,7 +23,7 @@ os task create \
   -d "Task description" \
   [--context "Additional context"] \
   [--parent PARENT_TASK_ID] \
-  [--priority 1-5] \
+  [--priority 0-2] \
   [--blocked-by BLOCKER_ID,...]
 ```
 
@@ -31,7 +31,7 @@ os task create \
 - `-d, --description` (required): Task description
 - `--context`: Additional context information
 - `--parent`: Parent task ID (creates subtask)
-- `--priority`: Priority level (1-5, default: 3)
+- `--priority`: Priority level (0=highest, 1=default, 2=lowest)
 - `--blocked-by`: Comma-separated list of blocking task IDs
 
 **Examples:**
@@ -125,7 +125,7 @@ Update task fields.
 os task update TASK_ID \
   [-d "New description"] \
   [--context "New context"] \
-  [--priority 1-5] \
+  [--priority 0-2] \
   [--parent NEW_PARENT_ID]
 ```
 
@@ -273,10 +273,10 @@ os task next-ready [--milestone MILESTONE_ID]
 - Returns `null` if no ready tasks found
 
 **Algorithm:**
-1. DFS traversal respecting priority ordering (higher priority first)
+1. DFS traversal respecting priority ordering (p0 = highest priority first)
 2. A task is "effectively blocked" if it OR any ancestor has incomplete blockers
 3. Find deepest incomplete leaf that is effectively unblocked
-4. Ordering: `priority DESC`, `created_at ASC`, `id ASC`
+4. Ordering: `priority ASC`, `created_at ASC`, `id ASC`
 
 **Effective-Unblocked Inheritance:**
 - If milestone is blocked → entire subtree is blocked
@@ -299,7 +299,7 @@ os task next-ready --milestone task_01JQAZ...
   "id": "task_01JQAZ...",
   "parentId": "task_01JQAY...",
   "description": "Implement login endpoint",
-  "priority": 5,
+  "priority": 0,
   "completed": false,
   "depth": 2,
   "context": {

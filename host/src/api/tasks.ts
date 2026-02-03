@@ -11,7 +11,7 @@ import {
   decodeTaskTrees,
   decodeTaskProgress,
 } from "../decoder.js";
-import type { Depth, Task, TaskWithContext, TaskTree, TaskProgress } from "../types.js";
+import type { Depth, Priority, Task, TaskWithContext, TaskTree, TaskProgress } from "../types.js";
 
 /**
  * Task type aliases for depth (ergonomic sugar)
@@ -46,14 +46,14 @@ export interface CreateTaskInput {
   description: string;
   context?: string;
   parentId?: string;
-  priority?: 1 | 2 | 3 | 4 | 5;
+  priority?: Priority;
   blockedBy?: string[];
 }
 
 export interface UpdateTaskInput {
   description?: string;
   context?: string;
-  priority?: 1 | 2 | 3 | 4 | 5;
+  priority?: Priority;
   parentId?: string;
 }
 
@@ -112,7 +112,7 @@ export const tasks = {
     const args = ["task", "create", "-d", input.description];
     if (input.context) args.push("--context", input.context);
     if (input.parentId) args.push("--parent", input.parentId);
-    if (input.priority) args.push("--priority", String(input.priority));
+    if (input.priority !== undefined) args.push("--priority", String(input.priority));
     if (input.blockedBy && input.blockedBy.length > 0) {
       args.push("--blocked-by", input.blockedBy.join(","));
     }
@@ -127,7 +127,7 @@ export const tasks = {
     const args = ["task", "update", id];
     if (input.description) args.push("-d", input.description);
     if (input.context) args.push("--context", input.context);
-    if (input.priority) args.push("--priority", String(input.priority));
+    if (input.priority !== undefined) args.push("--priority", String(input.priority));
     if (input.parentId) args.push("--parent", input.parentId);
     return decodeTask(await callCli(args)).unwrap("tasks.update");
   },

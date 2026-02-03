@@ -43,8 +43,8 @@ export function parseLearningId(s: string): LearningId {
 
 // ============ Domain Types ============
 
-/** Priority levels (enforced by Rust, 1-5) */
-export type Priority = 1 | 2 | 3 | 4 | 5;
+/** Priority levels: p0=highest, p1=default, p2=lowest */
+export type Priority = 0 | 1 | 2;
 
 /** Task depth (0=milestone, 1=task, 2=subtask) */
 export type Depth = 0 | 1 | 2;
