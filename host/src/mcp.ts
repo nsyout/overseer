@@ -29,8 +29,8 @@ interface Task {
   result: string | null;        // Completion notes
   commitSha: string | null;     // Auto-populated on complete
   depth: 0 | 1 | 2;             // 0=milestone, 1=task, 2=subtask
-  blockedBy: string[];
-  blocks: string[];
+  blockedBy?: string[];          // Omitted if empty
+  blocks?: string[];             // Omitted if empty
   bookmark?: string;            // VCS bookmark name (if started)
   startCommit?: string;         // Commit SHA at start
   effectivelyBlocked: boolean;  // True if task OR ancestor has incomplete blockers
@@ -70,7 +70,7 @@ type TaskType = "milestone" | "task" | "subtask";
 // Tasks API
 // Note: VCS (jj or git) is REQUIRED for start/complete. CRUD ops work without VCS.
 declare const tasks: {
-  list(filter?: { parentId?: string; ready?: boolean; completed?: boolean; depth?: 0 | 1 | 2; type?: TaskType; archived?: boolean }): Promise<Task[]>;
+  list(filter?: { parentId?: string; ready?: boolean; completed?: boolean; depth?: 0 | 1 | 2; type?: TaskType; archived?: boolean | "all" }): Promise<Task[]>;
   get(id: string): Promise<TaskWithContext>;
   create(input: {
     description: string;
@@ -150,14 +150,17 @@ console.log(task.context.milestone); // inherited from root
 // Complete task (VCS required - commits changes)
 await tasks.complete(task.id, { result: "Implemented using jose library" });
 
-// Cancel task if abandoning (does NOT satisfy blockers)
-await tasks.cancel(taskId);
+// Cancel a task if abandoning (does NOT satisfy blockers)
+await tasks.cancel(task.id);
 
-// Archive finished tasks (hides from default list)
-await tasks.archive(completedTaskId);
+// Archive a finished task (hides from default list)
+await tasks.archive(task.id);
 
-// Include archived tasks in list
-const allTasks = await tasks.list({ archived: true });
+// Show only archived tasks
+const archivedOnly = await tasks.list({ archived: true });
+
+// Include all tasks (archived and non-archived)
+const allTasks = await tasks.list({ archived: "all" });
 \`\`\`
 `.trim();
 

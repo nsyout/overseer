@@ -85,7 +85,7 @@ declare const tasks: {
     completed?: boolean;
     depth?: 0 | 1 | 2;    // 0=milestones, 1=tasks, 2=subtasks
     type?: TaskType;      // Alias: "milestone"|"task"|"subtask" (mutually exclusive with depth)
-    archived?: boolean;   // Include archived tasks (default: false)
+    archived?: boolean | "all";   // true=only archived, "all"=include all, omit=hide archived
   }): Promise<Task[]>;
   get(id: string): Promise<TaskWithContext>;
   create(input: {
