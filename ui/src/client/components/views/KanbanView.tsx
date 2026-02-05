@@ -498,6 +498,7 @@ function KanbanCard({
         className={`
           p-3 
           ${isChanged ? "animate-flash-change" : ""}
+          ${task.archived ? "opacity-70" : ""}
         `}
       >
         {/* Type badge + timestamp */}
@@ -522,7 +523,13 @@ function KanbanCard({
         <div
           className={`
             text-sm font-mono leading-tight mb-2 line-clamp-2
-            ${task.completed ? "text-text-muted line-through" : "text-text-primary"}
+            ${task.archived
+              ? "text-text-muted"
+              : task.completed
+                ? "text-text-muted line-through"
+                : task.cancelled
+                  ? "text-text-muted"
+                  : "text-text-primary"}
           `}
         >
           {task.description}

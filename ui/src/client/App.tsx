@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTasks, useNextReadyTask } from "./lib/queries.js";
 import { useUIStore, type ViewMode } from "./lib/store.js";
 import { KeyboardProvider, useKeyboardShortcuts } from "./lib/keyboard.js";
@@ -31,7 +31,12 @@ function AppContent() {
   const toggleDetailPanel = useUIStore((s) => s.toggleDetailPanel);
   const clearIfMissing = useUIStore((s) => s.clearIfMissing);
 
-  const { data: tasks, isLoading, isFetching, error } = useTasks();
+  // Show archived toggle (includes archived tasks in list)
+  const [showArchived, setShowArchived] = useState(false);
+
+  const { data: tasks, isLoading, isFetching, error } = useTasks({
+    includeArchived: showArchived,
+  });
 
   // URL-based milestone filter
   const [filterMilestoneId, setFilterMilestoneId] = useMilestoneFilter();
@@ -179,6 +184,8 @@ function AppContent() {
           milestones={milestones}
           filterMilestoneId={filterMilestoneId}
           onFilterChange={setFilterMilestoneId}
+          showArchived={showArchived}
+          onShowArchivedChange={setShowArchived}
         />
 
         {/* Main content area */}

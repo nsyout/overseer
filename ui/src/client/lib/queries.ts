@@ -60,6 +60,7 @@ export function useTasks(filter?: TaskFilter) {
       if (filter?.parentId) params.set("parentId", filter.parentId);
       if (filter?.ready !== undefined) params.set("ready", String(filter.ready));
       if (filter?.completed !== undefined) params.set("completed", String(filter.completed));
+      if (filter?.includeArchived !== undefined) params.set("includeArchived", String(filter.includeArchived));
 
       const url = `${API_BASE}/api/tasks${params.toString() ? `?${params}` : ""}`;
       const res = await fetch(url);
@@ -189,6 +190,58 @@ export function useReopenTask() {
       if (!res.ok) {
         const err: unknown = await res.json().catch(() => ({}));
         throw new Error(getErrorMessage(err, "Failed to reopen task"));
+      }
+
+      return res.json() as Promise<Task>;
+    },
+    onSuccess: (_data: Task, id: string) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(id) });
+    },
+  });
+}
+
+/**
+ * Cancel task mutation (abandon incomplete task)
+ */
+export function useCancelTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<Task> => {
+      const res = await fetch(`${API_BASE}/api/tasks/${id}/cancel`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const err: unknown = await res.json().catch(() => ({}));
+        throw new Error(getErrorMessage(err, "Failed to cancel task"));
+      }
+
+      return res.json() as Promise<Task>;
+    },
+    onSuccess: (_data: Task, id: string) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(id) });
+    },
+  });
+}
+
+/**
+ * Archive task mutation (soft delete completed/cancelled task)
+ */
+export function useArchiveTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<Task> => {
+      const res = await fetch(`${API_BASE}/api/tasks/${id}/archive`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const err: unknown = await res.json().catch(() => ({}));
+        throw new Error(getErrorMessage(err, "Failed to archive task"));
       }
 
       return res.json() as Promise<Task>;

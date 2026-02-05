@@ -56,12 +56,13 @@ const tasks = new Hono()
   /**
    * GET /api/tasks
    * List all tasks with optional filters
-   * Query params: parentId, ready, completed
+   * Query params: parentId, ready, completed, includeArchived
    */
   .get("/", async (c) => {
     const parentId = c.req.query("parentId");
     const ready = c.req.query("ready");
     const completed = c.req.query("completed");
+    const includeArchived = c.req.query("includeArchived");
 
     const args = ["task", "list"];
     if (parentId) {
@@ -72,6 +73,9 @@ const tasks = new Hono()
     }
     if (ready === "true") args.push("--ready");
     if (completed === "true") args.push("--completed");
+    // includeArchived=true -> --all (show all including archived)
+    // Default: hide archived
+    if (includeArchived === "true") args.push("--all");
 
     try {
       const result = decodeTasks(await callCli(args)).unwrap("GET /api/tasks");
@@ -238,6 +242,46 @@ const tasks = new Hono()
     try {
       const result = decodeTask(await callCli(["task", "reopen", id])).unwrap(
         "POST /api/tasks/:id/reopen"
+      );
+      return c.json(result);
+    } catch (err) {
+      return handleCliError(c, err);
+    }
+  })
+
+  /**
+   * POST /api/tasks/:id/cancel
+   * Cancel (abandon) an incomplete task
+   */
+  .post("/:id/cancel", async (c) => {
+    const id = c.req.param("id");
+    if (!isTaskId(id)) {
+      return c.json({ error: `Invalid task ID: ${id}` }, 400);
+    }
+
+    try {
+      const result = decodeTask(await callCli(["task", "cancel", id])).unwrap(
+        "POST /api/tasks/:id/cancel"
+      );
+      return c.json(result);
+    } catch (err) {
+      return handleCliError(c, err);
+    }
+  })
+
+  /**
+   * POST /api/tasks/:id/archive
+   * Archive a completed or cancelled task (soft delete)
+   */
+  .post("/:id/archive", async (c) => {
+    const id = c.req.param("id");
+    if (!isTaskId(id)) {
+      return c.json({ error: `Invalid task ID: ${id}` }, 400);
+    }
+
+    try {
+      const result = decodeTask(await callCli(["task", "archive", id])).unwrap(
+        "POST /api/tasks/:id/archive"
       );
       return c.json(result);
     } catch (err) {

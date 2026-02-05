@@ -591,8 +591,9 @@ function TaskItem({
       onMouseEnter={() => onFocus(taskIndex)}
       className={`
         relative w-full text-left py-1 px-2 transition-colors motion-reduce:transition-none
-        ${isSelected ? "bg-surface-secondary ring-2 ring-inset ring-accent" : "hover:bg-surface-primary"}
+        ${isSelected ? "bg-surface-secondary ring-2 ring-inset ring-accent" : isFocused ? "bg-surface-primary ring-1 ring-inset ring-border" : "hover:bg-surface-primary"}
         ${isChanged ? "animate-flash-change-transparent" : ""}
+        ${task.archived ? "opacity-70" : ""}
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent
       `}
     >
@@ -666,7 +667,13 @@ function TaskItem({
         <span
           className={`
             text-sm font-mono truncate flex-1
-            ${task.completed ? "text-text-muted line-through" : "text-text-primary"}
+            ${task.archived
+              ? "text-text-muted"
+              : task.completed
+                ? "text-text-muted line-through"
+                : task.cancelled
+                  ? "text-text-muted"
+                  : "text-text-primary"}
           `}
         >
           {task.description}

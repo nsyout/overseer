@@ -50,6 +50,10 @@ interface HeaderProps {
   filterMilestoneId: TaskId | null;
   /** Callback to change the filter */
   onFilterChange: (id: TaskId | null) => void;
+  /** Whether to show archived tasks */
+  showArchived: boolean;
+  /** Callback to toggle archived visibility */
+  onShowArchivedChange: (show: boolean) => void;
 }
 
 /**
@@ -72,6 +76,8 @@ export function Header({
   milestones = [],
   filterMilestoneId,
   onFilterChange,
+  showArchived,
+  onShowArchivedChange,
 }: HeaderProps) {
   const viewMode = useUIStore((s) => s.viewMode);
   const setViewMode = useUIStore((s) => s.setViewMode);
@@ -160,6 +166,22 @@ export function Header({
             </button>
           </div>
         )}
+
+        {/* Show archived toggle */}
+        <button
+          aria-pressed={showArchived}
+          onClick={() => onShowArchivedChange(!showArchived)}
+          className={`
+            h-9 px-3 text-xs font-mono uppercase tracking-wider rounded
+            transition-colors motion-reduce:transition-none
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus
+            ${showArchived
+              ? "bg-status-archived/20 text-status-archived border border-status-archived/40"
+              : "text-text-dim hover:text-text-muted bg-transparent border border-border hover:border-border-hover"}
+          `}
+        >
+          {showArchived ? "Archived visible" : "Show archived"}
+        </button>
       </div>
 
       {/* Spacer */}

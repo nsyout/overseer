@@ -439,6 +439,7 @@ const TaskNodeComponent = memo(function TaskNodeComponent({
                 ? "border-accent/60"
                 : "border-border hover:border-border-hover"
           }
+          ${task.archived ? "opacity-70" : ""}
         `}
         style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}
         data-task-id={task.id}
@@ -480,13 +481,17 @@ const TaskNodeComponent = memo(function TaskNodeComponent({
               `}
               style={{
                 backgroundColor:
-                  statusVariant === "done"
-                    ? "var(--color-status-done)"
-                    : statusVariant === "blocked"
-                      ? "var(--color-status-blocked)"
-                      : statusVariant === "active"
-                        ? "var(--color-status-active)"
-                        : "var(--color-status-pending)",
+                  statusVariant === "archived"
+                    ? "var(--color-status-archived)"
+                    : statusVariant === "cancelled"
+                      ? "var(--color-status-cancelled)"
+                      : statusVariant === "done"
+                        ? "var(--color-status-done)"
+                        : statusVariant === "blocked"
+                          ? "var(--color-status-blocked)"
+                          : statusVariant === "active"
+                            ? "var(--color-status-active)"
+                            : "var(--color-status-pending)",
               }}
               aria-hidden="true"
             />
@@ -511,7 +516,13 @@ const TaskNodeComponent = memo(function TaskNodeComponent({
           <p
             className={`
               text-sm font-mono line-clamp-2 leading-tight
-              ${task.completed ? "text-text-muted line-through" : "text-text-primary"}
+              ${task.archived
+                ? "text-text-muted"
+                : task.completed
+                  ? "text-text-muted line-through"
+                  : task.cancelled
+                    ? "text-text-muted"
+                    : "text-text-primary"}
             `}
           >
             {task.description}

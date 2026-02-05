@@ -151,6 +151,8 @@ export interface TaskFilter {
   parentId?: string;
   ready?: boolean;
   completed?: boolean;
+  /** Include archived tasks in results (default: false = hide archived) */
+  includeArchived?: boolean;
 }
 
 export interface ApiError {

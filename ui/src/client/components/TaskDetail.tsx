@@ -4,6 +4,8 @@ import {
   useUpdateTask,
   useCompleteTask,
   useDeleteTask,
+  useCancelTask,
+  useArchiveTask,
   useLearnings,
 } from "../lib/queries.js";
 import { useKeyboardShortcuts } from "../lib/keyboard.js";
@@ -73,15 +75,19 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
   const [editValue, setEditValue] = useState("");
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [completeResult, setCompleteResult] = useState("");
   const [copied, setCopied] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const scopeProps = useKeyboardScope("detail");
   const { data: learnings } = useLearnings(task.id);
   const updateTask = useUpdateTask();
   const completeTask = useCompleteTask();
   const deleteTask = useDeleteTask();
+  const cancelTask = useCancelTask();
+  const archiveTask = useArchiveTask();
 
   const depthLabel =
     task.depth === 0 ? "Milestone" : task.depth === 1 ? "Task" : "Subtask";
@@ -161,6 +167,31 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
       },
     });
   }, [task.id, deleteTask, onDeleted]);
+
+  const confirmCancel = useCallback(() => {
+    setActionError(null);
+    cancelTask.mutate(task.id, {
+      onSuccess: () => {
+        setShowCancelDialog(false);
+      },
+      onError: (err) => {
+        setActionError(err.message);
+      },
+    });
+  }, [task.id, cancelTask]);
+
+  const handleArchive = useCallback(() => {
+    setActionError(null);
+    archiveTask.mutate(task.id, {
+      onSuccess: () => {
+        // Deselect since task will be hidden from default view
+        onDeleted?.();
+      },
+      onError: (err) => {
+        setActionError(err.message);
+      },
+    });
+  }, [task.id, archiveTask, onDeleted]);
 
   const copyTaskId = useCallback(async () => {
     try {
@@ -501,18 +532,47 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
       </dl>
 
       {/* Action buttons footer */}
-      {!task.completed && (
+      {!task.archived && (
         <footer className="p-4 border-t border-border flex gap-2">
-          <Button
-            variant={isBlocked ? "secondary" : "primary"}
-            onClick={() => setShowCompleteDialog(true)}
-            disabled={isBlocked}
-            className="flex-1"
-            title={isBlocked ? "Complete blockers first" : "Complete this task"}
-          >
-            {isBlocked ? "Blocked" : "Complete"}
-            {!isBlocked && <Kbd size="sm" className="ml-1">c</Kbd>}
-          </Button>
+          {/* Complete button - only for incomplete, uncancelled */}
+          {!task.completed && !task.cancelled && (
+            <Button
+              variant={isBlocked ? "secondary" : "primary"}
+              onClick={() => setShowCompleteDialog(true)}
+              disabled={isBlocked}
+              className="flex-1"
+              title={isBlocked ? "Complete blockers first" : "Complete this task"}
+            >
+              {isBlocked ? "Blocked" : "Complete"}
+              {!isBlocked && <Kbd size="sm" className="ml-1">c</Kbd>}
+            </Button>
+          )}
+
+          {/* Cancel button - only for incomplete, uncancelled */}
+          {!task.completed && !task.cancelled && (
+            <Button
+              variant="secondary"
+              onClick={() => setShowCancelDialog(true)}
+              title="Cancel (abandon) this task - cannot be undone"
+            >
+              Cancel
+            </Button>
+          )}
+
+          {/* Archive button - for completed or cancelled tasks */}
+          {(task.completed || task.cancelled) && (
+            <Button
+              variant="secondary"
+              onClick={handleArchive}
+              disabled={archiveTask.isPending}
+              className="flex-1"
+              title="Archive (soft delete)"
+            >
+              {archiveTask.isPending ? "Archiving..." : "Archive"}
+            </Button>
+          )}
+
+          {/* Delete button */}
           <Button
             variant="danger"
             onClick={() => setShowDeleteDialog(true)}
@@ -521,6 +581,15 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
             Delete
             <Kbd size="sm" className="ml-1">⌫</Kbd>
           </Button>
+        </footer>
+      )}
+
+      {/* Show "Archived" notice for archived tasks */}
+      {task.archived && (
+        <footer className="p-4 border-t border-border">
+          <div className="flex items-center justify-center gap-2 text-status-archived font-mono text-sm uppercase tracking-wider">
+            <span>This task is archived</span>
+          </div>
         </footer>
       )}
 
@@ -600,6 +669,48 @@ export function TaskDetail({ task, onDeleted }: TaskDetailProps) {
           </div>
         )}
       </Dialog>
+
+      {/* Cancel Dialog */}
+      <Dialog
+        open={showCancelDialog}
+        onOpenChange={setShowCancelDialog}
+      >
+        <DialogHeader>
+          <DialogTitle>Cancel Task</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to cancel this task? Cancelled tasks cannot be reopened.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            variant="secondary"
+            onClick={() => setShowCancelDialog(false)}
+          >
+            Go Back
+          </Button>
+          <Button
+            variant="danger"
+            onClick={confirmCancel}
+            disabled={cancelTask.isPending}
+          >
+            {cancelTask.isPending ? "Cancelling..." : "Cancel Task"}
+          </Button>
+        </DialogFooter>
+        {cancelTask.isError && (
+          <div className="px-6 pb-4">
+            <p className="text-sm text-status-blocked">
+              {cancelTask.error.message}
+            </p>
+          </div>
+        )}
+      </Dialog>
+
+      {/* Action error display (for archive) */}
+      {actionError && (
+        <div className="px-4 pb-4">
+          <p className="text-sm text-status-blocked font-mono">{actionError}</p>
+        </div>
+      )}
     </div>
   );
 }
