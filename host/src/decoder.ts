@@ -140,6 +140,10 @@ export function decodeTask(v: unknown): Result<Task, DecodeError> {
     bookmark,
     startCommit,
     effectivelyBlocked,
+    cancelled,
+    cancelledAt,
+    archived,
+    archivedAt,
   } = v;
 
   // Required fields
@@ -181,6 +185,18 @@ export function decodeTask(v: unknown): Result<Task, DecodeError> {
   }
   if (!isBoolean(effectivelyBlocked)) {
     return Result.err(new DecodeError({ message: "Task effectivelyBlocked must be boolean" }));
+  }
+  if (!isBoolean(cancelled)) {
+    return Result.err(new DecodeError({ message: "Task cancelled must be boolean" }));
+  }
+  if (cancelledAt !== null && !isString(cancelledAt)) {
+    return Result.err(new DecodeError({ message: "Task cancelledAt must be string or null" }));
+  }
+  if (!isBoolean(archived)) {
+    return Result.err(new DecodeError({ message: "Task archived must be boolean" }));
+  }
+  if (archivedAt !== null && !isString(archivedAt)) {
+    return Result.err(new DecodeError({ message: "Task archivedAt must be string or null" }));
   }
 
   // Optional array fields
@@ -234,6 +250,10 @@ export function decodeTask(v: unknown): Result<Task, DecodeError> {
     commitSha: commitSha as string | null,
     depth: depth as Depth,
     effectivelyBlocked,
+    cancelled,
+    cancelledAt: cancelledAt as string | null,
+    archived,
+    archivedAt: archivedAt as string | null,
   };
 
   if (decodedBlockedBy) task.blockedBy = decodedBlockedBy;

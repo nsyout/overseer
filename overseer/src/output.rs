@@ -16,15 +16,26 @@ use crate::Command;
 /// Task status for display classification
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TaskStatus {
+    Archived,
+    Cancelled,
     Completed,
     Blocked,
     Ready,
 }
 
 impl TaskStatus {
-    /// Classify task status from completed and effectively_blocked fields
-    fn classify(completed: bool, effectively_blocked: bool) -> Self {
-        if completed {
+    /// Classify task status from task fields
+    fn classify(
+        completed: bool,
+        effectively_blocked: bool,
+        cancelled: bool,
+        archived: bool,
+    ) -> Self {
+        if archived {
+            Self::Archived
+        } else if cancelled {
+            Self::Cancelled
+        } else if completed {
             Self::Completed
         } else if effectively_blocked {
             Self::Blocked
@@ -47,6 +58,10 @@ struct TreeTask {
     created_at: chrono::DateTime<chrono::Utc>,
     #[serde(default)]
     effectively_blocked: bool,
+    #[serde(default)]
+    cancelled: bool,
+    #[serde(default)]
+    archived: bool,
 }
 
 /// Tree structure for display
@@ -84,6 +99,8 @@ struct Colors {
     completed: Style,
     pending: Style,
     blocked: Style,
+    cancelled: Style,
+    archived: Style,
     priority_high: Style,
     priority_med: Style,
     milestone: Style,
@@ -99,6 +116,8 @@ impl Colors {
                 completed: Style::new().green(),
                 pending: Style::new().yellow(),
                 blocked: Style::new().red(),
+                cancelled: Style::new().magenta(),
+                archived: Style::new().dimmed(),
                 priority_high: Style::new().red(),
                 priority_med: Style::new().yellow(),
                 milestone: Style::new().bold(),
@@ -112,6 +131,8 @@ impl Colors {
                 completed: Style::new(),
                 pending: Style::new(),
                 blocked: Style::new(),
+                cancelled: Style::new(),
+                archived: Style::new(),
                 priority_high: Style::new(),
                 priority_med: Style::new(),
                 milestone: Style::new(),
@@ -156,6 +177,8 @@ impl Printer {
     /// Get status symbol and style for a task status
     fn status_symbol_style(&self, status: TaskStatus) -> (&'static str, Style) {
         match status {
+            TaskStatus::Archived => ("▪", self.colors.archived),
+            TaskStatus::Cancelled => ("✗", self.colors.cancelled),
             TaskStatus::Completed => ("✓", self.colors.completed),
             TaskStatus::Blocked => ("⊘", self.colors.blocked),
             TaskStatus::Ready => ("○", self.colors.pending),
@@ -320,9 +343,14 @@ impl Printer {
 
     /// Count completed/blocked/ready tasks in a tree recursively
     fn count_tree_stats(node: &TreeNode) -> (usize, usize, usize) {
-        let status = TaskStatus::classify(node.task.completed, node.task.effectively_blocked);
+        let status = TaskStatus::classify(
+            node.task.completed,
+            node.task.effectively_blocked,
+            node.task.cancelled,
+            node.task.archived,
+        );
         let (mut completed, mut blocked, mut ready) = match status {
-            TaskStatus::Completed => (1, 0, 0),
+            TaskStatus::Archived | TaskStatus::Cancelled | TaskStatus::Completed => (1, 0, 0),
             TaskStatus::Blocked => (0, 1, 0),
             TaskStatus::Ready => (0, 0, 1),
         };
@@ -338,7 +366,12 @@ impl Printer {
     }
 
     fn print_tree_node(&self, tree: &TreeNode, prefix: &str, is_last: bool) {
-        let status = TaskStatus::classify(tree.task.completed, tree.task.effectively_blocked);
+        let status = TaskStatus::classify(
+            tree.task.completed,
+            tree.task.effectively_blocked,
+            tree.task.cancelled,
+            tree.task.archived,
+        );
         let (status_sym, status_style) = self.status_symbol_style(status);
 
         let connector = if is_last { "└─" } else { "├─" };
@@ -379,9 +412,16 @@ impl Printer {
                 let mut ready_count = 0;
 
                 for t in &tasks {
-                    let status = TaskStatus::classify(t.completed, t.effectively_blocked);
+                    let status = TaskStatus::classify(
+                        t.completed,
+                        t.effectively_blocked,
+                        t.cancelled,
+                        t.archived,
+                    );
                     match status {
-                        TaskStatus::Completed => completed_count += 1,
+                        TaskStatus::Archived | TaskStatus::Cancelled | TaskStatus::Completed => {
+                            completed_count += 1
+                        }
                         TaskStatus::Blocked => blocked_count += 1,
                         TaskStatus::Ready => ready_count += 1,
                     }
@@ -418,8 +458,15 @@ impl Printer {
                 let total = tasks.len();
 
                 for t in &tasks {
-                    match TaskStatus::classify(t.completed, t.effectively_blocked) {
-                        TaskStatus::Completed => completed_count += 1,
+                    match TaskStatus::classify(
+                        t.completed,
+                        t.effectively_blocked,
+                        t.cancelled,
+                        t.archived,
+                    ) {
+                        TaskStatus::Archived | TaskStatus::Cancelled | TaskStatus::Completed => {
+                            completed_count += 1
+                        }
                         TaskStatus::Blocked => blocked_count += 1,
                         TaskStatus::Ready => ready_count += 1,
                     }
@@ -517,7 +564,12 @@ impl Printer {
 
     /// Print a forest root node (no connector prefix) and its children
     fn print_forest_node(&self, node: &TreeNode, prefix: &str, is_root: bool) {
-        let status = TaskStatus::classify(node.task.completed, node.task.effectively_blocked);
+        let status = TaskStatus::classify(
+            node.task.completed,
+            node.task.effectively_blocked,
+            node.task.cancelled,
+            node.task.archived,
+        );
         let (status_sym, status_style) = self.status_symbol_style(status);
 
         // Milestones (depth 0) are bold
@@ -570,7 +622,12 @@ impl Printer {
 
     /// Print a child node with connector and recurse
     fn print_forest_child(&self, node: &TreeNode, line_prefix: &str, child_prefix: &str) {
-        let status = TaskStatus::classify(node.task.completed, node.task.effectively_blocked);
+        let status = TaskStatus::classify(
+            node.task.completed,
+            node.task.effectively_blocked,
+            node.task.cancelled,
+            node.task.archived,
+        );
         let (status_sym, status_style) = self.status_symbol_style(status);
 
         let desc = if node.task.depth == Some(0) {
@@ -601,8 +658,15 @@ impl Printer {
 
     fn print_task(&self, output: &str) {
         if let Ok(task) = serde_json::from_str::<types::Task>(output) {
-            let status = TaskStatus::classify(task.completed, task.effectively_blocked);
+            let status = TaskStatus::classify(
+                task.completed,
+                task.effectively_blocked,
+                task.cancelled,
+                task.archived,
+            );
             let (status_label, status_style) = match status {
+                TaskStatus::Archived => ("archived", self.colors.archived),
+                TaskStatus::Cancelled => ("cancelled", self.colors.cancelled),
                 TaskStatus::Completed => ("completed", self.colors.completed),
                 TaskStatus::Blocked => ("blocked", self.colors.blocked),
                 TaskStatus::Ready => ("open", self.colors.pending),

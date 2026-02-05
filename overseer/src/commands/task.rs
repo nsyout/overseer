@@ -31,6 +31,14 @@ pub enum TaskCommand {
         #[arg(value_parser = parse_task_id)]
         id: TaskId,
     },
+    Cancel {
+        #[arg(value_parser = parse_task_id)]
+        id: TaskId,
+    },
+    Archive {
+        #[arg(value_parser = parse_task_id)]
+        id: TaskId,
+    },
     Delete {
         #[arg(value_parser = parse_task_id)]
         id: TaskId,
@@ -63,6 +71,7 @@ pub struct CreateArgs {
 
 #[derive(Args)]
 #[command(group = clap::ArgGroup::new("depth_filter").multiple(false))]
+#[command(group = clap::ArgGroup::new("archive_filter").multiple(false))]
 pub struct ListArgs {
     #[arg(long, value_parser = parse_task_id, conflicts_with_all = ["milestones", "tasks", "subtasks"])]
     pub parent: Option<TaskId>,
@@ -84,6 +93,14 @@ pub struct ListArgs {
     /// Show only subtasks (depth 2)
     #[arg(short = 's', long, group = "depth_filter")]
     pub subtasks: bool,
+
+    /// Show only archived tasks
+    #[arg(long, group = "archive_filter")]
+    pub archived: bool,
+
+    /// Include all tasks (including archived)
+    #[arg(short = 'a', long, group = "archive_filter")]
+    pub all: bool,
 
     /// Show flat list instead of tree view (default). Human output only; JSON always returns flat array.
     #[arg(long)]
@@ -221,11 +238,20 @@ pub fn handle(conn: &Connection, cmd: TaskCommand) -> Result<TaskResult> {
             } else {
                 None
             };
+            // Archived filter: --archived -> only archived, --all -> include all, default -> hide archived
+            let archived = if args.archived {
+                Some(true)
+            } else if args.all {
+                None // Include all
+            } else {
+                Some(false) // Default: hide archived
+            };
             let filter = ListTasksFilter {
                 parent_id: args.parent,
                 ready: args.ready,
                 completed: if args.completed { Some(true) } else { None },
                 depth,
+                archived,
             };
             Ok(TaskResult::Many(svc.list(&filter)?))
         }
@@ -241,6 +267,10 @@ pub fn handle(conn: &Connection, cmd: TaskCommand) -> Result<TaskResult> {
         }
 
         TaskCommand::Reopen { id } => Ok(TaskResult::One(svc.reopen(&id)?)),
+
+        TaskCommand::Cancel { id } => Ok(TaskResult::One(svc.cancel(&id)?)),
+
+        TaskCommand::Archive { id } => Ok(TaskResult::One(svc.archive(&id)?)),
 
         TaskCommand::Delete { id } => {
             svc.delete(&id)?;
@@ -357,6 +387,7 @@ fn build_all_trees(conn: &Connection) -> Result<Vec<TaskTree>> {
         ready: false,
         completed: None,
         depth: Some(0),
+        ..Default::default()
     };
     let mut milestones = svc.list(&filter)?;
 
@@ -382,6 +413,7 @@ fn build_tree_recursive(conn: &Connection, task: Task) -> Result<TaskTree> {
         ready: false,
         completed: None,
         depth: None,
+        ..Default::default()
     };
 
     let children_tasks = svc.list(&filter)?;
@@ -405,19 +437,20 @@ fn build_tree_recursive(conn: &Connection, task: Task) -> Result<TaskTree> {
 fn calculate_progress(conn: &Connection, root_id: Option<&TaskId>) -> Result<TaskProgressResult> {
     let svc = TaskService::new(conn);
 
-    // Get all tasks, optionally filtered by descendant of root
+    // Get all tasks (including archived), optionally filtered by descendant of root
     let tasks = match root_id {
         Some(id) => {
             // Get all descendants of this task
             get_descendants(conn, id)?
         }
         None => {
-            // Get all tasks
+            // Get all tasks (include archived in total)
             let filter = ListTasksFilter {
                 parent_id: None,
                 ready: false,
                 completed: None,
                 depth: None,
+                archived: None, // Include all (archived and non-archived)
             };
             svc.list(&filter)?
         }
@@ -425,13 +458,14 @@ fn calculate_progress(conn: &Connection, root_id: Option<&TaskId>) -> Result<Tas
 
     let total = tasks.len();
     let completed = tasks.iter().filter(|t| t.completed).count();
+    // Use is_active_for_work() which excludes completed, cancelled, and archived
     let ready = tasks
         .iter()
-        .filter(|t| !t.completed && !t.effectively_blocked)
+        .filter(|t| t.is_active_for_work() && !t.effectively_blocked)
         .count();
     let blocked = tasks
         .iter()
-        .filter(|t| !t.completed && t.effectively_blocked)
+        .filter(|t| t.is_active_for_work() && t.effectively_blocked)
         .count();
 
     Ok(TaskProgressResult {
@@ -455,6 +489,7 @@ fn get_descendants(conn: &Connection, root_id: &TaskId) -> Result<Vec<Task>> {
             ready: false,
             completed: None,
             depth: None,
+            archived: None, // Include all (archived and non-archived)
         })?;
 
         for child in children {
@@ -475,6 +510,7 @@ fn search_tasks(conn: &Connection, query: &str) -> Result<Vec<Task>> {
         ready: false,
         completed: None,
         depth: None,
+        ..Default::default()
     })?;
 
     let query_lower = query.to_lowercase();

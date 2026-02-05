@@ -13,6 +13,8 @@ const badge = tv({
       active: "bg-status-active/20 text-status-active border border-status-active/30",
       blocked: "bg-status-blocked/20 text-status-blocked border border-status-blocked/30",
       done: "bg-status-done/20 text-status-done border border-status-done/30",
+      cancelled: "bg-status-cancelled/20 text-status-cancelled border border-status-cancelled/30",
+      archived: "bg-status-archived/20 text-status-archived border border-status-archived/30",
       nextUp: "bg-accent/20 text-accent border border-accent/30",
     },
   },

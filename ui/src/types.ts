@@ -87,6 +87,14 @@ export interface Task {
   startCommit?: string;
   /** Computed: true if task or any ancestor has incomplete blockers */
   effectivelyBlocked: boolean;
+  /** Task was cancelled (abandoned without completion) */
+  cancelled: boolean;
+  /** Timestamp when task was cancelled */
+  cancelledAt: string | null;
+  /** Task is archived (hidden from default views) */
+  archived: boolean;
+  /** Timestamp when task was archived */
+  archivedAt: string | null;
 }
 
 /**

@@ -29,6 +29,10 @@ pub struct ExportTask {
     pub priority: i32,
     pub completed: bool,
     pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub cancelled: bool,
+    pub cancelled_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub archived: bool,
+    pub archived_at: Option<chrono::DateTime<chrono::Utc>>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub started_at: Option<chrono::DateTime<chrono::Utc>>,
@@ -69,8 +73,14 @@ pub fn handle(conn: &Connection, cmd: DataCommand) -> Result<DataResult> {
 pub(crate) fn export_data(conn: &Connection, output: Option<PathBuf>) -> Result<DataResult> {
     let output_path = output.unwrap_or_else(|| PathBuf::from("overseer-export.json"));
 
-    // Get all tasks with full context
-    let tasks = task_repo::list_tasks(conn, &Default::default())?;
+    use crate::types::ListTasksFilter;
+
+    // Get all tasks including archived (archived: None = include all)
+    let filter = ListTasksFilter {
+        archived: None,
+        ..Default::default()
+    };
+    let tasks = task_repo::list_tasks(conn, &filter)?;
     let export_tasks: Vec<ExportTask> = tasks
         .iter()
         .filter_map(|t| {
@@ -86,6 +96,10 @@ pub(crate) fn export_data(conn: &Connection, output: Option<PathBuf>) -> Result<
                     priority: full_task.priority,
                     completed: full_task.completed,
                     completed_at: full_task.completed_at,
+                    cancelled: full_task.cancelled,
+                    cancelled_at: full_task.cancelled_at,
+                    archived: full_task.archived,
+                    archived_at: full_task.archived_at,
                     created_at: full_task.created_at,
                     updated_at: full_task.updated_at,
                     started_at: full_task.started_at,
@@ -115,7 +129,7 @@ pub(crate) fn export_data(conn: &Connection, output: Option<PathBuf>) -> Result<
     }
 
     let export = ExportData {
-        version: "1.0.0".to_string(),
+        version: "1.1.0".to_string(),
         exported_at: chrono::Utc::now().to_rfc3339(),
         tasks: export_tasks.clone(),
         learnings: all_learnings.clone(),
@@ -169,7 +183,7 @@ mod tests {
         // Verify content
         let content = fs::read_to_string(&output_path).unwrap();
         let export: ExportData = serde_json::from_str(&content).unwrap();
-        assert_eq!(export.version, "1.0.0");
+        assert_eq!(export.version, "1.1.0");
         assert_eq!(export.tasks.len(), 0);
         assert_eq!(export.learnings.len(), 0);
         assert_eq!(export.blockers.len(), 0);

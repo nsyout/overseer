@@ -32,6 +32,8 @@ const COLUMN_LABELS: Record<StatusVariant, string> = {
   active: "ACTIVE",
   blocked: "BLOCKED",
   done: "DONE",
+  cancelled: "CANCELLED",
+  archived: "ARCHIVED",
 };
 
 /** Static text color classes for each column (Tailwind can't detect dynamic classes) */
@@ -40,6 +42,8 @@ const COLUMN_TEXT_COLORS: Record<StatusVariant, string> = {
   active: "text-status-active",
   blocked: "text-status-blocked",
   done: "text-status-done",
+  cancelled: "text-status-cancelled",
+  archived: "text-status-archived",
 };
 
 interface KanbanViewProps {
@@ -80,6 +84,8 @@ export function KanbanView({
       active: [],
       blocked: [],
       done: [],
+      cancelled: [],
+      archived: [],
     };
 
     for (const task of tasks) {

@@ -40,6 +40,14 @@ export interface TaskFilter {
    * Mutually exclusive with parentId and depth.
    */
   type?: TaskType;
+  /**
+   * Filter by archived state:
+   * - undefined: hide archived (default)
+   * - true: show only archived
+   * - false: hide archived (explicit)
+   * - "all": include all (archived and non-archived)
+   */
+  archived?: boolean | "all";
 }
 
 export interface CreateTaskInput {
@@ -94,6 +102,13 @@ export const tasks = {
       };
       args.push(depthFlags[effectiveDepth]);
     }
+    // Archived filter
+    if (filter?.archived === true) {
+      args.push("--archived");
+    } else if (filter?.archived === "all") {
+      args.push("--all");
+    }
+    // Default (undefined or false) = hide archived (CLI default)
     return decodeTasks(await callCli(args)).unwrap("tasks.list");
   },
 
@@ -171,6 +186,24 @@ export const tasks = {
    */
   async reopen(id: string): Promise<Task> {
     return decodeTask(await callCli(["task", "reopen", id])).unwrap("tasks.reopen");
+  },
+
+  /**
+   * Cancel a pending or in-progress task.
+   * Cannot cancel completed or archived tasks.
+   * Cannot cancel tasks with pending children.
+   */
+  async cancel(id: string): Promise<Task> {
+    return decodeTask(await callCli(["task", "cancel", id])).unwrap("tasks.cancel");
+  },
+
+  /**
+   * Archive a completed or cancelled task.
+   * Archived tasks are hidden from default list views.
+   * Cannot archive active (pending/in-progress) tasks.
+   */
+  async archive(id: string): Promise<Task> {
+    return decodeTask(await callCli(["task", "archive", id])).unwrap("tasks.archive");
   },
 
   /**

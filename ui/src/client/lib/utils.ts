@@ -19,16 +19,20 @@ export function formatRelativeTime(date: Date): string {
  * Task status variant for UI display.
  * Uses effectivelyBlocked (domain-correct field) instead of blockedBy.length.
  */
-export type StatusVariant = "pending" | "active" | "blocked" | "done";
+export type StatusVariant = "archived" | "cancelled" | "pending" | "active" | "blocked" | "done";
 
 /**
  * Derive task status for consistent UI rendering.
+ * - archived: task.archived
+ * - cancelled: task.cancelled (but not archived)
  * - done: task.completed
  * - blocked: not completed AND effectivelyBlocked (task or ancestor has incomplete blockers)
  * - active: not completed, not blocked, AND started
  * - pending: everything else
  */
 export function getStatusVariant(task: Task): StatusVariant {
+  if (task.archived) return "archived";
+  if (task.cancelled) return "cancelled";
   if (task.completed) return "done";
   if (task.effectivelyBlocked) return "blocked";
   if (task.startedAt !== null) return "active";
@@ -41,6 +45,10 @@ export function getStatusVariant(task: Task): StatusVariant {
 export function getStatusLabel(task: Task): string {
   const variant = getStatusVariant(task);
   switch (variant) {
+    case "archived":
+      return "ARCHIVED";
+    case "cancelled":
+      return "CANCELLED";
     case "done":
       return "DONE";
     case "blocked":

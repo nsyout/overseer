@@ -452,6 +452,8 @@ fn clone_task_cmd(cmd: &TaskCommand) -> TaskCommand {
             milestones: args.milestones,
             tasks: args.tasks,
             subtasks: args.subtasks,
+            archived: args.archived,
+            all: args.all,
             flat: args.flat,
         }),
         TaskCommand::Update(args) => TaskCommand::Update(task::UpdateArgs {
@@ -468,6 +470,8 @@ fn clone_task_cmd(cmd: &TaskCommand) -> TaskCommand {
             learnings: args.learnings.clone(),
         }),
         TaskCommand::Reopen { id } => TaskCommand::Reopen { id: id.clone() },
+        TaskCommand::Cancel { id } => TaskCommand::Cancel { id: id.clone() },
+        TaskCommand::Archive { id } => TaskCommand::Archive { id: id.clone() },
         TaskCommand::Delete { id } => TaskCommand::Delete { id: id.clone() },
         TaskCommand::Block(args) => TaskCommand::Block(task::BlockArgs {
             id: args.id.clone(),

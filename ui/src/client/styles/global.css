@@ -24,6 +24,8 @@
   --color-status-active-glow: oklch(0.7 0.18 45 / 0.4); /* Active glow (40% opacity) */
   --color-status-blocked: oklch(0.65 0.2 25); /* Red-orange */
   --color-status-done: oklch(0.65 0.12 145);  /* Teal-green */
+  --color-status-cancelled: oklch(0.6 0.15 320); /* Magenta */
+  --color-status-archived: oklch(0.4 0 0);    /* Dimmed gray */
 
   /* Borders */
   --color-border: oklch(0.28 0 0);

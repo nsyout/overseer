@@ -40,6 +40,22 @@ impl<'a> TaskWorkflowService<'a> {
     pub fn start(&self, id: &TaskId) -> Result<Task> {
         let task = self.task_service.get(id)?;
 
+        // Guard: cannot start non-active tasks (cancelled, completed, archived)
+        // This check MUST come before the idempotent path to prevent starting
+        // tasks that were started then cancelled (they still have bookmark/started_at)
+        if !task.is_active_for_work() {
+            return match task.lifecycle_state() {
+                crate::types::LifecycleState::Completed => Err(OsError::CannotStartCompleted),
+                crate::types::LifecycleState::Cancelled => Err(OsError::CannotStartCancelled),
+                crate::types::LifecycleState::Archived => Err(OsError::CannotModifyArchived),
+                // These are active states - is_active_for_work() would have returned true
+                crate::types::LifecycleState::Pending
+                | crate::types::LifecycleState::InProgress => {
+                    unreachable!("is_active_for_work() returned false but state is active")
+                }
+            };
+        }
+
         // Idempotent: already started with VCS state
         if task.started_at.is_some() && task.bookmark.is_some() {
             // Just checkout the existing bookmark
@@ -206,6 +222,14 @@ impl<'a> TaskWorkflowService<'a> {
     ) -> Result<Task> {
         let task = self.task_service.get(id)?;
 
+        // Lifecycle guard: reject inactive states
+        if task.archived {
+            return Err(OsError::CannotCompleteArchived);
+        }
+        if task.cancelled {
+            return Err(OsError::CannotCompleteCancelled);
+        }
+
         // Idempotent: already completed
         if task.completed {
             return Ok(task);
@@ -315,6 +339,14 @@ impl<'a> TaskWorkflowService<'a> {
         learnings: &[String],
     ) -> Result<Task> {
         let task = self.task_service.get(id)?;
+
+        // Lifecycle guard: reject inactive states
+        if task.archived {
+            return Err(OsError::CannotCompleteArchived);
+        }
+        if task.cancelled {
+            return Err(OsError::CannotCompleteCancelled);
+        }
 
         // Idempotent: already completed
         if task.completed {
@@ -1254,5 +1286,62 @@ mod tests {
         let result = service.start(&milestone.id);
         assert!(result.is_ok());
         assert!(result.unwrap().started_at.is_some());
+    }
+
+    #[test]
+    fn test_complete_cancelled_task_fails() {
+        let conn = setup_db();
+        let service = TaskWorkflowService::new(&conn, mock_vcs());
+        let svc = service.task_service();
+
+        let task = svc
+            .create(&CreateTaskInput {
+                description: "Task".to_string(),
+                context: None,
+                parent_id: None,
+                priority: None,
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        // Cancel the task
+        svc.cancel(&task.id).unwrap();
+
+        // Try to complete cancelled task
+        let result = service.complete_with_learnings(&task.id, None, &[]);
+        assert!(
+            matches!(result, Err(OsError::CannotCompleteCancelled)),
+            "Expected CannotCompleteCancelled error, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_complete_archived_task_fails() {
+        let conn = setup_db();
+        let service = TaskWorkflowService::new(&conn, mock_vcs());
+        let svc = service.task_service();
+
+        let task = svc
+            .create(&CreateTaskInput {
+                description: "Task".to_string(),
+                context: None,
+                parent_id: None,
+                priority: None,
+                blocked_by: vec![],
+            })
+            .unwrap();
+
+        // Complete then archive the task
+        svc.complete(&task.id, None).unwrap();
+        svc.archive(&task.id).unwrap();
+
+        // Try to complete archived task (even though already completed, archived check comes first)
+        let result = service.complete_with_learnings(&task.id, None, &[]);
+        assert!(
+            matches!(result, Err(OsError::CannotCompleteArchived)),
+            "Expected CannotCompleteArchived error, got {:?}",
+            result
+        );
     }
 }
