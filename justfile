@@ -3,13 +3,13 @@ set shell := ["bash", "-cu"]
 # Build Rust CLI, host, and UI
 build:
     cd overseer && cargo build --release
-    cd host && npm install && npm run build
-    cd ui && npm install && npm run build
+    cd host && pnpm install && pnpm run build
+    cd ui && pnpm install && pnpm run build
 
 # Install/build Node dependencies for host and UI
 setup:
-    cd host && npm install && npm run build
-    cd ui && npm install
+    cd host && pnpm install && pnpm run build
+    cd ui && pnpm install
 
 # Install latest os binary from GitHub Releases (to ~/.local/bin by default)
 install:
@@ -27,9 +27,9 @@ mcp:
 
 # Run UI dev server
 ui:
-    cd ui && npm run dev
+    cd ui && pnpm run dev
 
 # Build checks for Node packages
 check:
-    cd host && npm run build
-    cd ui && npm run build
+    cd host && pnpm run build
+    cd ui && pnpm run build

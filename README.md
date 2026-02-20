@@ -12,15 +12,19 @@ This project started as a forked codebase from the original Overseer work by dmm
 ### Quick start (recommended)
 
 ```bash
-# 1) Install latest os binary from GitHub Releases
+# 1) Install latest os binary from GitHub Releases (CLI)
 just install
 
-# 2) Install/build host + UI deps
+# 2) Install/build host + UI deps (needed for MCP/UI)
 just setup
 
 # 3) Ensure os is on PATH
 export PATH="$HOME/.local/bin:$PATH"
 ```
+
+What this gives you:
+- `os task ...` / `os learning ...` / `os vcs ...` from release binary.
+- `os mcp` and `os ui` require local `host` + `ui` build output from this repo.
 
 ### Install os from GitHub Releases (manual)
 
@@ -43,13 +47,13 @@ cargo build --release
 
 # Host (MCP + UI server)
 cd ../host
-npm install
-npm run build
+pnpm install
+pnpm run build
 
 # UI
 cd ../ui
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 ### Via skills.sh (for agents)
@@ -62,9 +66,16 @@ npx skills add nsyout/overseer
 
 ### Who Uses What
 
-- **You (human):** use the CLI (`os task ...`) and UI (`cd ui && npm run dev`) to manage and inspect tasks.
+- **You (human):** use the CLI (`os task ...`) and UI (`cd ui && pnpm run dev`) to manage and inspect tasks.
 - **AI agent:** uses MCP via `host` (`execute` tool with `tasks`/`learnings` APIs).
 - **Shared state:** both interfaces read/write the same SQLite task store and follow the same workflow rules.
+
+### Important runtime note
+
+`os` currently shells out to the local Node host for `os mcp` and `os ui`.
+That means release binary install alone is not enough for MCP/UI unless the local `host/dist` and `ui/dist` are present.
+
+If you only need CLI task management, release binary install is sufficient.
 
 ### MCP Server
 
@@ -72,8 +83,8 @@ Build host first:
 
 ```bash
 cd host
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 Then add to your MCP client config:
@@ -83,7 +94,7 @@ Then add to your MCP client config:
   "mcpServers": {
     "overseer": {
       "command": "node",
-      "args": ["/absolute/path/to/overseer/host/dist/index.js", "mcp", "--cli-path", "/absolute/path/to/overseer/overseer/target/release/os", "--cwd", "/absolute/path/to/your/project"]
+      "args": ["/absolute/path/to/overseer/host/dist/index.js", "mcp", "--cli-path", "/Users/you/.local/bin/os", "--cwd", "/absolute/path/to/your/project"]
     }
   }
 }
@@ -241,9 +252,12 @@ os data export [-o file.json]
 Web UI for viewing tasks:
 
 ```bash
-# From repo (development)
-cd ui && npm install && npm run dev
-# Opens http://localhost:5173
+# Build and run through os (serves UI via host on :6969)
+just setup
+os ui
+
+# Or run Vite dev UI
+cd ui && pnpm run dev  # Opens http://localhost:5173
 ```
 
 Three views:
@@ -269,12 +283,12 @@ cd overseer && cargo build --release
 cd overseer && cargo test
 
 # Node Host (MCP + UI server)
-cd host && npm install
-cd host && npm run build
-cd host && npm run typecheck
+cd host && pnpm install
+cd host && pnpm run build
+cd host && pnpm run typecheck
 
 # UI (dev server)
-cd ui && npm install && npm run dev
+cd ui && pnpm install && pnpm run dev
 ```
 
 ## Storage
