@@ -15,7 +15,7 @@ importers:
         specifier: ^1.0.4
         version: 1.26.0(zod@4.3.6)
       '@tanstack/react-query':
-        specifier: ^5.66.0
+        specifier: ^5.90.21
         version: 5.90.21(react@19.2.4)
       better-result:
         specifier: ^2.7.0
