@@ -30,6 +30,12 @@ npx skills add dmmulroy/overseer
 
 ## Usage
 
+### Who Uses What
+
+- **You (human):** use the CLI (`os task ...`) and UI (`cd ui && npm run dev`) to manage and inspect tasks.
+- **AI agent:** uses MCP via `host` (`execute` tool with `tasks`/`learnings` APIs).
+- **Shared state:** both interfaces read/write the same SQLite task store and follow the same workflow rules.
+
 ### MCP Server
 
 Add to your MCP client config:
