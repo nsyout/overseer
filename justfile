@@ -6,6 +6,11 @@ build:
     cd host && npm install && npm run build
     cd ui && npm install && npm run build
 
+# Install/build Node dependencies for host and UI
+setup:
+    cd host && npm install && npm run build
+    cd ui && npm install
+
 # Install latest os binary from GitHub Releases (to ~/.local/bin by default)
 install:
     bash {{justfile_directory()}}/scripts/install.sh

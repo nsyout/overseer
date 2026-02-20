@@ -9,7 +9,20 @@ This project started as a forked codebase from the original Overseer work by dmm
 
 ## Setup
 
-### From GitHub Releases (binary)
+### Quick start (recommended)
+
+```bash
+# 1) Install latest os binary from GitHub Releases
+just install
+
+# 2) Install/build host + UI deps
+just setup
+
+# 3) Ensure os is on PATH
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### Install os from GitHub Releases (manual)
 
 ```bash
 # Auto-detect OS/arch, verify checksum, install to ~/.local/bin
@@ -21,7 +34,7 @@ bash scripts/install.sh
 
 Note: for private repos, authenticate first (`gh auth login`) so the installer can download release assets.
 
-### From source (local fork)
+### Build from source
 
 ```bash
 # Rust CLI
@@ -55,7 +68,15 @@ npx skills add nsyout/overseer
 
 ### MCP Server
 
-Add to your MCP client config:
+Build host first:
+
+```bash
+cd host
+npm install
+npm run build
+```
+
+Then add to your MCP client config:
 
 ```json
 {
@@ -69,7 +90,7 @@ Add to your MCP client config:
 ```
 
 Notes:
-- Set `--cli-path` to your installed binary (`/usr/local/bin/os` if installed from release).
+- Set `--cli-path` to your installed binary (`$HOME/.local/bin/os` if installed via `scripts/install.sh`).
 - Set `--cwd` to the project directory where you want tasks/workflow to run.
 
 ### CLI
@@ -235,6 +256,14 @@ Keyboard: `g`=graph, `l`=list, `k`=kanban, `?`=help
 ## Development
 
 ```bash
+# Justfile shortcuts
+just setup         # host deps + build, ui deps
+just install       # install os from latest release
+just install-local # build os locally and install to ~/.local/bin
+just build         # build os + host + ui
+just check         # host/ui production builds
+just ui            # run UI dev server
+
 # Rust CLI
 cd overseer && cargo build --release
 cd overseer && cargo test
