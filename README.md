@@ -2,12 +2,24 @@
 
 Task orchestration for AI agents via MCP. SQLite-backed, native git integration (gix).
 
-## Install
+## Setup
 
-### Via npm
+### From source (local fork)
 
 ```bash
-npm install -g @dmmulroy/overseer
+# Rust CLI
+cd overseer
+cargo build --release
+
+# Host (MCP + UI server)
+cd ../host
+npm install
+npm run build
+
+# UI
+cd ../ui
+npm install
+npm run build
 ```
 
 ### Via skills.sh (for agents)
@@ -26,8 +38,8 @@ Add to your MCP client config:
 {
   "mcpServers": {
     "overseer": {
-      "command": "npx",
-      "args": ["@dmmulroy/overseer", "mcp"]
+      "command": "node",
+      "args": ["/absolute/path/to/overseer/host/dist/index.js", "mcp", "--cli-path", "/absolute/path/to/overseer/overseer/target/release/os", "--cwd", "/absolute/path/to/your/project"]
     }
   }
 }
@@ -181,10 +193,7 @@ os data export [-o file.json]
 Web UI for viewing tasks:
 
 ```bash
-# Via CLI (after installing)
-os ui
-
-# Or from repo (development)
+# From repo (development)
 cd ui && npm install && npm run dev
 # Opens http://localhost:5173
 ```

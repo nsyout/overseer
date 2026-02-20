@@ -6,7 +6,7 @@
  * DO NOT EDIT - regenerate with: ./scripts/generate-types.sh
  * 
  * Compare against:
- * - mcp/src/types.ts
+ * - host/src/types.ts
  * - ui/src/types.ts
  */
 

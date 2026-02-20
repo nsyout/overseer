@@ -1,6 +1,6 @@
 /**
  * Shared types for Overseer UI API
- * Mirrors mcp/src/types.ts (camelCase from Rust serde)
+ * Mirrors host/src/types.ts (camelCase from Rust serde)
  */
 
 // Branded types for type-safe IDs

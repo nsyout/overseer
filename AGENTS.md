@@ -43,10 +43,6 @@ overseer/
 │       ├── executor.ts      # VM sandbox, CLI bridge
 │       └── api/             # tasks/learnings APIs
 │
-├── npm/                     # Publishing (platform-specific binaries)
-│   ├── overseer/            # Main package (routing wrapper)
-│   └── scripts/             # Platform package generation
-│
 ├── skills/                  # Agent skills (skills.sh compatible)
 │   ├── overseer/            # Task management skill
 │   └── overseer-plan/       # Plan-to-task conversion skill
@@ -95,7 +91,7 @@ Types must stay in sync between `overseer/src/types.rs`, `overseer/src/core/cont
 - `TaskId`: Newtype (Rust) / Branded type (TS), `task_` prefix + 26-char ULID
 - `LearningId`: Newtype / Branded, `lrn_` prefix
 - `Task`, `Learning`, `TaskContext`: Identical shapes
-- `InheritedLearnings`: Rust struct in `context.rs` has `own`, `parent`, `milestone`; TS `InheritedLearnings` in `mcp/src/types.ts` matches
+- `InheritedLearnings`: Rust struct in `context.rs` has `own`, `parent`, `milestone`; TS `InheritedLearnings` in `host/src/types.ts` matches
 - Rust uses `serde(rename_all = "camelCase")` -> JSON matches TS interfaces
 
 **Note:** The `InheritedLearnings` type in `overseer/src/types.rs` (with only `milestone` and `parent`) is for import/export schema compatibility. The actual runtime type used for `TaskWithContext` is in `context.rs` and includes `own`.

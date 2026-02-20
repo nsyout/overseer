@@ -57,7 +57,6 @@ overseer/
 │       └── vcs/     # git.rs (854)
 ├── host/            # Node MCP/UI host wrapper
 ├── ui/              # Hono API + Vite + React SPA
-└── npm/             # Publishing: wrapper + platform binaries
 ```
 
 ## Domain Model
@@ -255,7 +254,7 @@ Rust JSON output is source of truth. TypeScript mirrors it.
 
 | Rust | TypeScript |
 |------|------------|
-| `overseer/src/types.rs` | `mcp/src/types.ts` |
+| `overseer/src/types.rs` | `host/src/types.ts` |
 | `overseer/src/core/context.rs` | `ui/src/types.ts` |
 
 **Contract:** `serde(rename_all = "camelCase")` on all Rust structs.
@@ -264,18 +263,7 @@ Rust JSON output is source of truth. TypeScript mirrors it.
 
 ## Distribution
 
-### npm Package Structure
-
-`@dmmulroy/overseer` (main package):
-- Node router `bin/os`:
-  - `os mcp` → starts MCP server
-  - `os ui` → starts bundled UI server
-  - Otherwise → forwards to native platform binary
-- optionalDependencies on platform packages
-
-`@dmmulroy/overseer-<platform>`:
-- Contains native `os` binary
-- chmod postinstall for executable
+This fork is local-source first. Build and run directly from `overseer/`, `host/`, and `ui/`.
 
 **Environment variables:**
 - `OVERSEER_CLI_PATH` - Override CLI binary path
