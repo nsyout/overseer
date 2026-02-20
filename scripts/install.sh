@@ -3,6 +3,13 @@ set -euo pipefail
 
 REPO="nsyout/overseer"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
+TMPDIR_CLEAN=""
+
+cleanup() {
+	if [[ -n "$TMPDIR_CLEAN" && -d "$TMPDIR_CLEAN" ]]; then
+		rm -rf "$TMPDIR_CLEAN"
+	fi
+}
 
 need_cmd() {
 	command -v "$1" >/dev/null 2>&1 || {
@@ -96,15 +103,15 @@ main() {
 	need_cmd grep
 	need_cmd awk
 
-	local target asset tmpdir tarball checksums expected actual
+	local target asset tarball checksums expected actual
 	target="$(detect_target)"
 	asset="os-${target}.tar.gz"
 
-	tmpdir="$(mktemp -d)"
-	trap 'rm -rf "$tmpdir"' EXIT
+	TMPDIR_CLEAN="$(mktemp -d)"
+	trap cleanup EXIT
 
-	tarball="$tmpdir/$asset"
-	checksums="$tmpdir/checksums-sha256.txt"
+	tarball="$TMPDIR_CLEAN/$asset"
+	checksums="$TMPDIR_CLEAN/checksums-sha256.txt"
 
 	download "https://github.com/${REPO}/releases/latest/download/${asset}" "$tarball"
 	download "https://github.com/${REPO}/releases/latest/download/checksums-sha256.txt" "$checksums"
@@ -123,9 +130,9 @@ main() {
 		exit 1
 	fi
 
-	tar -xzf "$tarball" -C "$tmpdir"
+	tar -xzf "$tarball" -C "$TMPDIR_CLEAN"
 	mkdir -p "$INSTALL_DIR"
-	install -m 755 "$tmpdir/os" "$INSTALL_DIR/os"
+	install -m 755 "$TMPDIR_CLEAN/os" "$INSTALL_DIR/os"
 
 	echo "Installed os to $INSTALL_DIR/os"
 	echo "Add to PATH if needed: export PATH=\"$INSTALL_DIR:\$PATH\""
