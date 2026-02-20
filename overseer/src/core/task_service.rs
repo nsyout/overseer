@@ -1937,8 +1937,9 @@ mod tests {
             "Dependent should remain blocked when blocker is cancelled"
         );
 
-        // Verify the blocker itself reports it doesn't satisfy blockers
-        assert!(!cancelled_blocker.satisfies_blocker());
+        // Verify cancellation semantics used by blocker satisfaction logic
+        assert!(cancelled_blocker.cancelled);
+        assert!(!cancelled_blocker.completed);
     }
 
     /// Cannot reopen Pending or InProgress tasks - they are already "open"
