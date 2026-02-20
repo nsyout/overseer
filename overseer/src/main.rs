@@ -33,7 +33,7 @@ Overseer (os) - Task orchestration for AI coding agents.
 
 Features:
   • 3-level task hierarchy: milestone → task → subtask
-  • VCS integration (jj-first, git fallback)
+  • VCS integration (git)
   • Dependency management with cycle detection
   • Learning capture and inheritance
 
@@ -103,7 +103,7 @@ Initialize the Overseer database.
 
 The database is created at:
   1. OVERSEER_DB_PATH (if set)
-  2. VCS_ROOT/.overseer/tasks.db (if in jj/git repo)
+  2. VCS_ROOT/.overseer/tasks.db (if in git repo)
   3. CWD/.overseer/tasks.db (fallback)
 
 Usually runs automatically on first command.
@@ -287,7 +287,7 @@ fn find_static_root(exe_path: &PathBuf) -> Option<String> {
 ///
 /// Resolution order:
 /// 1. OVERSEER_DB_PATH env var (if set)
-/// 2. VCS root (.jj or .git) -> .overseer/tasks.db
+/// 2. VCS root (.git) -> .overseer/tasks.db
 /// 3. Fall back to current working directory -> .overseer/tasks.db
 fn default_db_path() -> PathBuf {
     // Check env override first

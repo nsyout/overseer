@@ -13,7 +13,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 OUTPUT_FILE="$PROJECT_ROOT/generated/types.ts"
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 
-cat > "$OUTPUT_FILE" << 'EOF'
+cat >"$OUTPUT_FILE" <<'EOF'
 /**
  * AUTO-GENERATED TypeScript types from Rust source of truth.
  * 
@@ -140,7 +140,7 @@ export interface TaskProgress {
 
 // ============ VCS Types ============
 
-export type VcsType = "jj" | "git" | "none";
+export type VcsType = "git" | "none";
 
 export interface VcsInfo {
   type: VcsType;

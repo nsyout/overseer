@@ -10,7 +10,7 @@ Overseer is a SQLite-backed task graph manager with:
 - **Rust CLI** (`os`) as source of truth for all business logic
 - **Node MCP server** providing codemode interface for agents  
 - **Web UI** for visual task inspection
-- **VCS integration** (jj-first) for workflow operations
+- **VCS integration** (git) for workflow operations
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -28,7 +28,7 @@ Overseer is a SQLite-backed task graph manager with:
 │                      os CLI (Rust)                          │
 │  - All business logic (validation, cycles, workflows)       │
 │  - SQLite persistence ($CWD/.overseer/tasks.db)             │
-│  - VCS backends: jj-lib (primary), gix (fallback)           │
+│  - VCS backend: gix                                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -41,9 +41,9 @@ Overseer is a SQLite-backed task graph manager with:
 | **Rust CLI core** | Testable, reusable, performant, type-safe |
 | **Node MCP wrapper** | MCP SDK is JS, codemode needs V8 sandbox |
 | **SQLite not JSON** | Queries, transactions, concurrent safe |
-| **jj-lib not shell** | Native performance, no spawn overhead |
+| **gix for VCS** | Pure Rust git operations with CLI fallback for commit |
 | **gix not git2** | Pure Rust, no C deps, actively maintained |
-| **JJ-first** | Primary VCS, git as fallback |
+| **Git-only** | Keep workflow simple and aligned with team tooling |
 | **ULID IDs** | Sortable, no central coordination |
 
 ## Package Structure
@@ -54,10 +54,9 @@ overseer/
 │   └── src/
 │       ├── core/    # task_service (1471), workflow_service (1208), context (481)
 │       ├── db/      # SQLite repos
-│       └── vcs/     # jj.rs (754), git.rs (854)
-├── mcp/             # Node MCP codemode server
+│       └── vcs/     # git.rs (854)
+├── host/            # Node MCP/UI host wrapper
 ├── ui/              # Hono API + Vite + React SPA
-└── npm/             # Publishing: wrapper + platform binaries
 ```
 
 ## Domain Model
@@ -194,17 +193,14 @@ When starting a blocked task:
 
 ## VCS Subsystem
 
-### Detection (jj-first)
+### Detection (git)
 
 Walk up from cwd:
-1. `.jj/` found → `JjBackend` (jj-lib)
-2. `.git/` found → `GixBackend` (gix + git CLI for commits)
-3. Neither → `VcsType::None`
+1. `.git/` found → `GixBackend` (gix + git CLI for commits)
+2. Neither → `VcsType::None`
 
 ### Backend Invariants
 
-- **jj-lib is primary**, gix is fallback
-- Never cache `Workspace`/`ReadonlyRepo` - reload each operation
 - gix uses git CLI for `commit()` (gix staging API unstable)
 
 ### Workflow VCS Operations
@@ -258,7 +254,7 @@ Rust JSON output is source of truth. TypeScript mirrors it.
 
 | Rust | TypeScript |
 |------|------------|
-| `overseer/src/types.rs` | `mcp/src/types.ts` |
+| `overseer/src/types.rs` | `host/src/types.ts` |
 | `overseer/src/core/context.rs` | `ui/src/types.ts` |
 
 **Contract:** `serde(rename_all = "camelCase")` on all Rust structs.
@@ -267,18 +263,7 @@ Rust JSON output is source of truth. TypeScript mirrors it.
 
 ## Distribution
 
-### npm Package Structure
-
-`@dmmulroy/overseer` (main package):
-- Node router `bin/os`:
-  - `os mcp` → starts MCP server
-  - `os ui` → starts bundled UI server
-  - Otherwise → forwards to native platform binary
-- optionalDependencies on platform packages
-
-`@dmmulroy/overseer-<platform>`:
-- Contains native `os` binary
-- chmod postinstall for executable
+This fork is local-source first. Build and run directly from `overseer/`, `host/`, and `ui/`.
 
 **Environment variables:**
 - `OVERSEER_CLI_PATH` - Override CLI binary path
@@ -291,8 +276,6 @@ Rust JSON output is source of truth. TypeScript mirrors it.
 - Guess VCS type - always detect via `detection.rs`
 - Use depth limit for cycle detection - use DFS
 - Bypass CASCADE delete invariant
-- Cache jj `Workspace`/`ReadonlyRepo`
-- Skip `rebase_descendants()` after `rewrite_commit()` in jj
 
 **Invariants (always true):**
 - VCS operations run before DB updates in workflow

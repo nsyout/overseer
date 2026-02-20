@@ -1,22 +1,57 @@
 # Overseer
 
-Task orchestration for AI agents via MCP. SQLite-backed, native VCS (jj-lib + gix).
+Task orchestration for AI agents via MCP. SQLite-backed, native git integration (gix).
 
-## Install
+## Upstream
 
-### Via npm
+This project started as a forked codebase from the original Overseer work by dmmulroy:
+- https://github.com/dmmulroy/overseer
+
+## Setup
+
+### From GitHub Releases (binary)
 
 ```bash
-npm install -g @dmmulroy/overseer
+# Auto-detect OS/arch, verify checksum, install to ~/.local/bin
+bash scripts/install.sh
+
+# Verify
+~/.local/bin/os --help
+```
+
+Note: for private repos, authenticate first (`gh auth login`) so the installer can download release assets.
+
+### From source (local fork)
+
+```bash
+# Rust CLI
+cd overseer
+cargo build --release
+
+# Host (MCP + UI server)
+cd ../host
+npm install
+npm run build
+
+# UI
+cd ../ui
+npm install
+npm run build
 ```
 
 ### Via skills.sh (for agents)
 
 ```bash
-npx skills add dmmulroy/overseer
+npx skills add nsyout/overseer
 ```
 
 ## Usage
+
+### Who Uses What
+
+- **You (human):** use the CLI (`os task ...`) and UI (`cd ui && npm run dev`) to manage and inspect tasks.
+- **AI agent:** uses MCP via `host` (`execute` tool with `tasks`/`learnings` APIs).
+- **Shared state:** both interfaces read/write the same SQLite task store and follow the same workflow rules.
 
 ### MCP Server
 
@@ -26,12 +61,16 @@ Add to your MCP client config:
 {
   "mcpServers": {
     "overseer": {
-      "command": "npx",
-      "args": ["@dmmulroy/overseer", "mcp"]
+      "command": "node",
+      "args": ["/absolute/path/to/overseer/host/dist/index.js", "mcp", "--cli-path", "/absolute/path/to/overseer/overseer/target/release/os", "--cwd", "/absolute/path/to/your/project"]
     }
   }
 }
 ```
+
+Notes:
+- Set `--cli-path` to your installed binary (`/usr/local/bin/os` if installed from release).
+- Set `--cwd` to the project directory where you want tasks/workflow to run.
 
 ### CLI
 
@@ -55,8 +94,7 @@ os task complete <task-id>
 ┌─────────────────────────────────────┐
 │         os CLI (Rust)               │
 │  - SQLite storage                   │
-│  - jj-lib (primary VCS)             │
-│  - gix (git fallback)               │
+│  - gix (git backend)                │
 └─────────────────────────────────────┘
 ```
 
@@ -129,7 +167,7 @@ VCS operations are integrated into task workflow - no direct API:
 | `tasks.complete(milestone)` | Also cleans ALL descendant bookmarks (depth-1 and depth-2) |
 | `tasks.delete(id)` | Best-effort bookmark cleanup (works without VCS) |
 
-VCS (jj or git) is **required** for start/complete. CRUD operations work without VCS.
+VCS (git) is **required** for start/complete. CRUD operations work without VCS.
 
 ## Progressive Context
 
@@ -182,10 +220,7 @@ os data export [-o file.json]
 Web UI for viewing tasks:
 
 ```bash
-# Via CLI (after installing)
-os ui
-
-# Or from repo (development)
+# From repo (development)
 cd ui && npm install && npm run dev
 # Opens http://localhost:5173
 ```
@@ -204,10 +239,10 @@ Keyboard: `g`=graph, `l`=list, `k`=kanban, `?`=help
 cd overseer && cargo build --release
 cd overseer && cargo test
 
-# Node MCP
-cd mcp && npm install
-cd mcp && npm run build
-cd mcp && npm test
+# Node Host (MCP + UI server)
+cd host && npm install
+cd host && npm run build
+cd host && npm run typecheck
 
 # UI (dev server)
 cd ui && npm install && npm run dev
@@ -217,18 +252,15 @@ cd ui && npm install && npm run dev
 
 SQLite database location (in priority order):
 1. `OVERSEER_DB_PATH` env var (if set)
-2. `VCS_ROOT/.overseer/tasks.db` (if in jj/git repo)
+2. `VCS_ROOT/.overseer/tasks.db` (if in git repo)
 3. `$CWD/.overseer/tasks.db` (fallback)
 
 Auto-created on first command.
 
 ## VCS Detection
 
-1. Walk up from cwd looking for `.jj/` → use jj-lib
-2. If not found, look for `.git/` → use gix
-3. Neither → VcsType::None
-
-jj-first: always prefer jj when available.
+1. Walk up from cwd looking for `.git/` → use gix
+2. If not found → `VcsType::None`
 
 ## Docs
 

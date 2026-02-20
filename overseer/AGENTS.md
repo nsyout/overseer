@@ -18,10 +18,9 @@ src/
 │   ├── task_repo.rs     # Task CRUD (502 lines)
 │   └── learning_repo.rs # Learning CRUD (282 lines)
 ├── vcs/
-│   ├── detection.rs     # Detect .jj/ vs .git/
+│   ├── detection.rs     # Detect .git/
 │   ├── backend.rs       # VcsBackend trait, types
-│   ├── jj.rs            # jj-lib (primary, ~650 lines)
-│   └── git.rs           # gix (fallback, ~730 lines)
+│   └── git.rs           # gix backend (~730 lines)
 ├── error.rs          # OsError enum (thiserror)
 ├── types.rs          # Task, CreateTaskInput, filters
 └── id.rs             # TaskId, LearningId (prefixed ULIDs)
@@ -48,7 +47,6 @@ src/
 - **serde rename_all**: Use `camelCase` for JSON output
 - **Clone for clap**: Commands cloned before handle() (ownership)
 - **VcsBackend trait**: All VCS ops go through trait, not concrete types
-- **pollster::block_on**: jj-lib is async, block at boundaries
 
 ## ANTI-PATTERNS
 
@@ -74,7 +72,7 @@ cargo test -- --nocapture  # See output
 |----------|------|
 | `tests/*.rs` | Integration (3 files) |
 | `src/**/*.rs` | Unit (inline #[test]) |
-| `testutil.rs` | Helpers: JjTestRepo, GitTestRepo |
+| `testutil.rs` | Helpers: GitTestRepo |
 
 ## PATTERNS (from learnings)
 
@@ -101,7 +99,6 @@ For commands that don't fit `run()->JSON->print` pattern (e.g., shell completion
 ## DEPENDENCIES
 
 Key crates:
-- `jj-lib =0.37` - Pinned exactly (API breaks between minors)
 - `gix` - Git operations
 - `rusqlite` - SQLite with bundled feature
 - `thiserror` - Error handling

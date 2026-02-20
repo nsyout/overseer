@@ -1,6 +1,6 @@
 # UI Bundling Plan
 
-Bundle the UI webapp into `@dmmulroy/overseer` so `os ui` works without cloning repo.
+Bundle the UI webapp into a distributable runtime so `os ui` works without cloning repo.
 
 ## Current State
 

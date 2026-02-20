@@ -174,7 +174,7 @@ VCS operations are **automatically handled** by the tasks API:
 | `tasks.complete(id)` | **VCS required** - commits changes (NothingToCommit = success) |
 | `tasks.delete(id)` | Best-effort bookmark cleanup (logs warning on failure) |
 
-**VCS (jj or git) is required** for start/complete. Fails with `NotARepository` if none found. CRUD operations work without VCS.
+**VCS (git) is required** for start/complete. Fails with `NotARepository` if none found. CRUD operations work without VCS.
 
 ## Quick Examples
 

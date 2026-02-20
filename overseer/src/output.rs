@@ -738,7 +738,6 @@ impl Printer {
     fn print_vcs_detect(&self, output: &str) {
         if let Ok(info) = serde_json::from_str::<VcsInfo>(output) {
             match info.vcs_type {
-                VcsType::Jj => println!("JJ repository at {}", info.root),
                 VcsType::Git => println!("Git repository at {}", info.root),
                 VcsType::None => println!("Not a repository"),
             }

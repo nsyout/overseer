@@ -2,9 +2,7 @@
 
 **Generated:** 2026-02-01  
 **Commit:** 829fb09  
-**JJ Change:** mptvnovo
-
-**Overseer** (`os`) - Codemode MCP server for agent task management. SQLite-backed, native VCS (jj-lib + gix). JJ-first.
+**Overseer** (`os`) - Codemode MCP server for agent task management. SQLite-backed, native VCS (gix/git).
 
 ## ARCHITECTURE
 
@@ -21,7 +19,7 @@
 |                      os (Rust CLI)                          |
 |  - All business logic                                       |
 |  - SQLite storage                                           |
-|  - Native VCS: jj-lib (jj) + gix (git)                      |
+|  - Native VCS: gix (git)                                    |
 |  - JSON output mode for MCP                                 |
 +-------------------------------------------------------------+
 ```
@@ -36,18 +34,14 @@ overseer/
 │       ├── commands/        # Subcommand handlers
 │       ├── core/            # TaskService, WorkflowService, context
 │       ├── db/              # SQLite repos
-│       └── vcs/             # jj-lib + gix backends
+│       └── vcs/             # gix/git backend
 │
-├── mcp/                     # Node MCP wrapper
+├── host/                    # Node MCP + UI host wrapper
 │   └── src/
 │       ├── index.ts         # Entry (stdio transport)
-│       ├── server.ts        # execute tool registration
+│       ├── mcp.ts           # execute tool registration
 │       ├── executor.ts      # VM sandbox, CLI bridge
 │       └── api/             # tasks/learnings APIs
-│
-├── npm/                     # Publishing (platform-specific binaries)
-│   ├── overseer/            # Main package (routing wrapper)
-│   └── scripts/             # Platform package generation
 │
 ├── skills/                  # Agent skills (skills.sh compatible)
 │   ├── overseer/            # Task management skill
@@ -67,11 +61,11 @@ overseer/
 | Task | Location | Notes |
 |------|----------|-------|
 | Add CLI command | `overseer/src/commands/` | Add in mod.rs, wire in main.rs |
-| Add MCP API | `mcp/src/api/` | Export in api/index.ts |
+| Add MCP API | `host/src/api/` | Export in api/index.ts |
 | Task CRUD | `overseer/src/db/task_repo.rs` | SQL layer |
 | Task business logic | `overseer/src/core/task_service.rs` | Validation, hierarchy (1407 lines) |
 | Task workflow (start/complete) | `overseer/src/core/workflow_service.rs` | VCS integration (816 lines) |
-| VCS operations | `overseer/src/vcs/` | jj.rs (primary), git.rs (fallback) |
+| VCS operations | `overseer/src/vcs/` | git.rs |
 | Error types | `overseer/src/error.rs` | OsError enum |
 | Types/IDs | `overseer/src/types.rs`, `overseer/src/id.rs` | Domain types, ULID |
 | UI API routes | `ui/src/api/routes/` | Hono route handlers |
@@ -85,20 +79,19 @@ overseer/
 |----------|--------|-----|
 | CLI binary | `os` | Short, memorable |
 | Storage | SQLite | Concurrent access, queries |
-| VCS primary | jj-lib | Native perf, no spawn |
-| VCS fallback | gix | Pure Rust, no C deps |
-| VCS semantics | Unified stacking | Both jj & git behave identically |
+| VCS backend | gix | Pure Rust, no C deps |
+| VCS semantics | Unified stacking | Git branch/bookmark lifecycle |
 | IDs | ULID | Sortable, coordination-free |
 | Task hierarchy | 3 levels max | Milestone(0) -> Task(1) -> Subtask(2) |
 | Error pattern | `thiserror` | Ergonomic error handling |
 
 ## TYPE SYNC (Rust <-> TS)
 
-Types must stay in sync between `overseer/src/types.rs`, `overseer/src/core/context.rs`, and `mcp/src/types.ts`:
+Types must stay in sync between `overseer/src/types.rs`, `overseer/src/core/context.rs`, and `host/src/types.ts`:
 - `TaskId`: Newtype (Rust) / Branded type (TS), `task_` prefix + 26-char ULID
 - `LearningId`: Newtype / Branded, `lrn_` prefix
 - `Task`, `Learning`, `TaskContext`: Identical shapes
-- `InheritedLearnings`: Rust struct in `context.rs` has `own`, `parent`, `milestone`; TS `InheritedLearnings` in `mcp/src/types.ts` matches
+- `InheritedLearnings`: Rust struct in `context.rs` has `own`, `parent`, `milestone`; TS `InheritedLearnings` in `host/src/types.ts` matches
 - Rust uses `serde(rename_all = "camelCase")` -> JSON matches TS interfaces
 
 **Note:** The `InheritedLearnings` type in `overseer/src/types.rs` (with only `milestone` and `parent`) is for import/export schema compatibility. The actual runtime type used for `TaskWithContext` is in `context.rs` and includes `own`.
@@ -117,7 +110,6 @@ Types must stay in sync between `overseer/src/types.rs`, `overseer/src/core/cont
 - **No `any`**: Strict TypeScript
 - **No `!`**: Non-null assertions forbidden
 - **Minimize `as Type`**: Type assertions discouraged; use decoders where possible
-- **jj-first**: ALWAYS check for `.jj/` before VCS commands
 
 ## ANTI-PATTERNS
 
@@ -137,10 +129,9 @@ Types must stay in sync between `overseer/src/types.rs`, `overseer/src/core/cont
 6. Learnings bubble to immediate parent on completion (preserves source_task_id)
 7. VCS required for workflow ops (start/complete) - fails with NotARepository or DirtyWorkingCopy
 8. VCS cleanup on delete is best-effort (logs warning, doesn't fail)
-9. VCS bookmark/branch lifecycle (unified stacking semantics):
+9. VCS bookmark/branch lifecycle:
    - `start`: Create bookmark/branch at HEAD, checkout
    - `complete`: Commit changes → checkout start_commit → delete bookmark/branch
-   - Both jj and git get identical behavior
 10. Milestone completion cleans ALL descendant bookmarks/branches (depth-1 and depth-2) PLUS milestone's own bookmark
 11. Blocker edges preserved on completion (not removed) - readiness computed from blocker's completed state
 
@@ -159,10 +150,9 @@ Agents write JS -> server executes -> only results return.
 cd overseer && cargo build --release    # Build CLI
 cd overseer && cargo test               # Run tests
 
-# Node MCP
-cd mcp && npm install             # Install deps
-cd mcp && npm run build           # Compile TS
-cd mcp && npm test                # Run tests (node --test)
+# Node Host
+cd host && npm install            # Install deps
+cd host && npm run build          # Compile TS
 
 # UI
 cd ui && npm run dev              # Start Hono API + Vite HMR

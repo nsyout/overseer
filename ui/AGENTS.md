@@ -23,7 +23,7 @@ ui/
 │   │   └── styles/
 │   │       └── global.css # Tailwind v4 + theme
 │   │
-│   └── types.ts          # Shared types (mirrors mcp/src/types.ts)
+│   └── types.ts          # Shared types (mirrors host/src/types.ts)
 │
 ├── scripts/
 │   └── test-ui.sh        # agent-browser test script
@@ -213,7 +213,7 @@ Tailwind v4 CSS-first config in `global.css`. **Neo-Industrial / Technical Bruta
 
 ## NOTES
 
-- Types in `src/types.ts` must mirror `mcp/src/types.ts`
+- Types in `src/types.ts` must mirror `host/src/types.ts`
 - CLI bridge spawns `os --json <command>` 
 - Vite proxies `/api/*` to Hono in dev mode
 - Production: Hono serves `dist/` static files

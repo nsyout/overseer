@@ -6,7 +6,7 @@
  * DO NOT EDIT - regenerate with: ./scripts/generate-types.sh
  * 
  * Compare against:
- * - mcp/src/types.ts
+ * - host/src/types.ts
  * - ui/src/types.ts
  */
 
@@ -132,7 +132,7 @@ export interface TaskProgress {
 
 // ============ VCS Types ============
 
-export type VcsType = "jj" | "git" | "none";
+export type VcsType = "git" | "none";
 
 export interface VcsInfo {
   type: VcsType;
