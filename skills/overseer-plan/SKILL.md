@@ -81,7 +81,7 @@ await tasks.start("<id>");                  // Task (VCS required - creates book
 await tasks.complete("<id>", { result: "...", learnings: [...] });  // Task (VCS required - commits, bubbles learnings)
 ```
 
-**VCS Required**: `start` and `complete` require jj or git (fail with `NotARepository` if none found). CRUD operations work without VCS.
+**VCS Required**: `start` and `complete` require git (fail with `NotARepository` if none found). CRUD operations work without VCS.
 
 **Note**: Priority must be 1-5. Blockers cannot be ancestors or descendants.
 

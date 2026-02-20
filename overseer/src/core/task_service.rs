@@ -1119,7 +1119,7 @@ mod tests {
         let completed = service.complete(&task.id, Some("Done")).unwrap();
 
         assert!(completed.completed);
-        // If we're in a VCS repo (jj or git), commit_sha should be populated
+        // If we're in a VCS repo (git), commit_sha should be populated
         // If not, it will be None - both are valid outcomes
         // The key is that the operation succeeds without error
     }

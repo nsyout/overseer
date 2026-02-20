@@ -67,11 +67,11 @@ On task completion with learnings:
 - `complete_with_learnings()`: VCS required - commits changes (NothingToCommit = success), adds learnings, checkouts start_commit, deletes bookmark/branch (best-effort)
 - `complete_milestone_with_learnings()`: Same + deletes ALL descendant bookmarks/branches recursively
 - Transaction order: VCS ops first, then DB state update
-- **Unified stacking semantics**: Both jj and git get identical behavior
+- **Unified stacking semantics**: Git workflow behavior is consistent across start/complete
   - On complete: checkout `start_commit` → delete bookmark/branch
   - Solves git's "cannot delete checked-out branch" error
 - Bookmark cleanup: best-effort deletion, logs warning on failure, clears DB field on success
-- Errors: `NotARepository` (no jj/git), `DirtyWorkingCopy` (uncommitted changes)
+- Errors: `NotARepository` (no git repo), `DirtyWorkingCopy` (uncommitted changes)
 - WorkflowService.new() takes `Box<dyn VcsBackend>` (not Option)
 
 ## INVARIANTS
@@ -83,6 +83,6 @@ On task completion with learnings:
 5. Learnings bubble to immediate parent only (preserves source_task_id)
 6. VCS required for start/complete - CRUD ops work without VCS
 7. VCS cleanup on delete is best-effort (logs warning, doesn't fail)
-8. VCS bookmark/branch lifecycle: created on start, deleted on complete (unified for jj & git), DB field cleared on success
+8. VCS bookmark/branch lifecycle: created on start, deleted on complete, DB field cleared on success
 9. Milestone completion cleans ALL descendant bookmarks/branches (depth-1 and depth-2) PLUS milestone's own bookmark
 10. Blocker edges preserved on completion (not removed) - readiness computed from blocker's completed state

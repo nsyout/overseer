@@ -262,7 +262,7 @@ await tasks.complete(task.id, { result: "Login endpoint complete" });
 // -> Stores commit SHA on task
 ```
 
-**VCS is required** for `start` and `complete`. Fails with `NotARepository` if no jj/git found, `DirtyWorkingCopy` if uncommitted changes. CRUD operations (create, list, get, etc.) work without VCS.
+**VCS is required** for `start` and `complete`. Fails with `NotARepository` if no git repo is found, `DirtyWorkingCopy` if uncommitted changes. CRUD operations (create, list, get, etc.) work without VCS.
 
 ### Error Handling
 
@@ -483,7 +483,7 @@ console.log(`${children.length} children still pending`);
 - **Output:** 50,000 chars max (larger outputs truncated)
 - **No network:** Sandbox has no fetch/http access
 - **No filesystem:** Cannot read/write files directly
-- **VCS required for workflow:** `start` and `complete` require jj or git (fails with `NotARepository` error). CRUD operations work without VCS.
+- **VCS required for workflow:** `start` and `complete` require git (fails with `NotARepository` error). CRUD operations work without VCS.
 
 ## Data Export
 

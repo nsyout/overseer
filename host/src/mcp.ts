@@ -68,7 +68,7 @@ interface TaskProgress {
 type TaskType = "milestone" | "task" | "subtask";
 
 // Tasks API
-// Note: VCS (jj or git) is REQUIRED for start/complete. CRUD ops work without VCS.
+// Note: VCS (git) is REQUIRED for start/complete. CRUD ops work without VCS.
 declare const tasks: {
   list(filter?: { parentId?: string; ready?: boolean; completed?: boolean; depth?: 0 | 1 | 2; type?: TaskType; archived?: boolean | "all" }): Promise<Task[]>;
   get(id: string): Promise<TaskWithContext>;
@@ -105,7 +105,7 @@ declare const learnings: {
 };
 \`\`\`
 
-**VCS Requirement:** \`start\` and \`complete\` require jj or git. Fails with NotARepository error if none found. CRUD operations work without VCS.
+**VCS Requirement:** \`start\` and \`complete\` require git. Fails with NotARepository error if none found. CRUD operations work without VCS.
 
 Examples:
 

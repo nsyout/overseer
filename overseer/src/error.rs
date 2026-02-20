@@ -118,7 +118,7 @@ pub enum OsError {
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
-    #[error("Not in a repository - run `jj init` or `git init`")]
+    #[error("Not in a repository - run `git init`")]
     NotARepository,
 
     #[error("Working copy has uncommitted changes - commit or stash first")]

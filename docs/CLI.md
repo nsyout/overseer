@@ -150,7 +150,7 @@ os task start TASK_ID
 ```
 
 **Behavior:**
-- **VCS required** - fails with `NotARepository` if no jj/git
+- **VCS required** - fails with `NotARepository` if no git repository
 - Follows blockers to find startable work
 - Cascades down to deepest incomplete leaf
 - Creates VCS bookmark for started task
@@ -186,7 +186,7 @@ os task complete TASK_ID [--result "Completion notes"] [--learning "..."]...
 - `--learning`: Learning discovered during task (repeatable flag)
 
 **Behavior:**
-- **VCS required** - fails with `NotARepository` if no jj/git
+- **VCS required** - fails with `NotARepository` if no git repository
 - Sets `status = completed`, `completed_at = now()`
 - Commits changes (NothingToCommit treated as success)
 - Fails if task has pending children
@@ -455,7 +455,7 @@ os vcs detect
 **Output:**
 ```json
 {
-  "type": "jj",  // or "git", "none"
+  "type": "git",  // or "none"
   "root": "/path/to/repo"
 }
 ```
@@ -531,7 +531,6 @@ os vcs commit -m "Commit message"
 ```
 
 **Behavior:**
-- **jj**: Describes current change and creates new change
 - **git**: Stages all changes (`git add -A`) and commits
 
 **Output:**

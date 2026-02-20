@@ -253,7 +253,7 @@ impl<'a> TaskWorkflowService<'a> {
             .complete_with_learnings(id, result, learnings)?;
 
         // 3. Best-effort cleanup: checkout safe target then delete bookmark/branch
-        // Unified stacking semantics: both jj and git get same behavior
+        // Unified stacking semantics for git backend
         // Checkout first solves git's "cannot delete checked-out branch" error
         if let Some(ref bookmark) = task.bookmark {
             // Find checkout target: prefer start_commit, fallback to current HEAD
@@ -387,7 +387,7 @@ impl<'a> TaskWorkflowService<'a> {
             .complete_with_learnings(id, result, learnings)?;
 
         // Best-effort cleanup: delete ALL descendant bookmarks
-        // Unified stacking semantics: both jj and git get same behavior
+        // Unified stacking semantics for git backend
         // For milestone, we need to checkout a safe commit first, then clean all descendants
         let descendants = task_repo::get_all_descendants(self.conn, id)?;
 

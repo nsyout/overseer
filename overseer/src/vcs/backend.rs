@@ -28,9 +28,6 @@ pub enum VcsError {
     #[error("Working copy has uncommitted changes")]
     DirtyWorkingCopy,
 
-    #[error("JJ error: {0}")]
-    Jj(String),
-
     #[error("Git error: {0}")]
     Git(String),
 
@@ -43,7 +40,6 @@ pub type VcsResult<T> = Result<T, VcsError>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum VcsType {
-    Jj,
     Git,
     None,
 }
@@ -113,7 +109,7 @@ pub struct CommitResult {
     pub message: String,
 }
 
-/// VCS backend trait - implemented by jj (primary) and git (fallback).
+/// VCS backend trait - implemented by git backend.
 pub trait VcsBackend: Send + Sync {
     /// Returns the VCS type (used in tests for backend verification)
     #[allow(dead_code)]

@@ -61,7 +61,7 @@ console.log("Task learnings:", task.learnings.own);
 await tasks.start(taskId);
 ```
 
-**VCS Required:** Creates bookmark `task/<id>`, records start commit. Fails with `NotARepository` if no jj/git found.
+**VCS Required:** Creates bookmark `task/<id>`, records start commit. Fails with `NotARepository` if no git repo is found.
 
 After starting, the task status changes to `in_progress`.
 
@@ -101,7 +101,7 @@ Verification:
 });
 ```
 
-**VCS Required:** Commits changes (NothingToCommit treated as success), then deletes the task's bookmark (best-effort) and clears the DB bookmark field on success. Fails with `NotARepository` if no jj/git found.
+**VCS Required:** Commits changes (NothingToCommit treated as success), then deletes the task's bookmark (best-effort) and clears the DB bookmark field on success. Fails with `NotARepository` if no git repo is found.
 
 **Learnings Effect:** Learnings bubble to immediate parent only. `sourceTaskId` is preserved through bubbling, so if this task's learnings later bubble further, the origin is tracked.
 
@@ -118,7 +118,7 @@ VCS operations are **automatically handled** by the tasks API:
 | `tasks.complete(milestoneId)` | Same + deletes ALL descendant bookmarks recursively (depth-1 and depth-2) |
 | `tasks.delete(id)` | Best-effort bookmark cleanup (logs warning on failure) |
 
-**Note:** VCS (jj or git) is required for start/complete. CRUD operations work without VCS.
+**Note:** VCS (git) is required for start/complete. CRUD operations work without VCS.
 
 ## Error Handling
 
