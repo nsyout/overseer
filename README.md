@@ -77,6 +77,11 @@ That means release binary install alone is not enough for MCP/UI unless the loca
 
 If you only need CLI task management, release binary install is sufficient.
 
+By default, `os` looks for `host/dist/index.js` and `ui/dist` under your current working directory first, then falls back to paths relative to the binary.
+You can override detection with:
+- `OVERSEER_HOST_SCRIPT=/absolute/path/to/host/dist/index.js`
+- `OVERSEER_UI_DIST=/absolute/path/to/ui/dist`
+
 ### MCP Server
 
 Build host first:

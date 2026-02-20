@@ -1,5 +1,5 @@
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command as StdCommand, Stdio};
 
 use clap::{CommandFactory, Parser, Subcommand};
@@ -166,17 +166,17 @@ fn run_host_server(mode: &str, port: u16) {
     // Find the host package relative to the binary
     // In dev: binary is at target/release/os, host is at ../../../host/dist/index.js
     // In npm: binary is at bin/os-{platform}, host is at ../host/dist/index.js
-    let host_script = find_host_script(&exe_path).unwrap_or_else(|| {
+    let host_script = find_host_script(&exe_path, &cwd).unwrap_or_else(|| {
         eprintln!("Error: cannot find @overseer/host package");
-        eprintln!("Make sure Node.js is installed and run: npm install -g overseer");
+        eprintln!("Build host from source and retry: cd host && pnpm install && pnpm run build");
         std::process::exit(1);
     });
 
     // For UI mode, we also need to find the static files
     let static_root = if mode == "ui" {
-        find_static_root(&exe_path).unwrap_or_else(|| {
+        find_static_root(&exe_path, &cwd).unwrap_or_else(|| {
             eprintln!("Error: cannot find UI static files");
-            eprintln!("Make sure the UI has been built: cd ui && npm run build");
+            eprintln!("Make sure the UI has been built: cd ui && pnpm install && pnpm run build");
             std::process::exit(1);
         })
     } else {
@@ -227,11 +227,22 @@ fn run_host_server(mode: &str, port: u16) {
 
 /// Find the host script relative to the binary.
 /// Tries multiple locations for dev vs production installs.
-fn find_host_script(exe_path: &PathBuf) -> Option<String> {
+fn find_host_script(exe_path: &PathBuf, cwd: &Path) -> Option<String> {
     let exe_dir = exe_path.parent()?;
+
+    if let Ok(explicit) = std::env::var("OVERSEER_HOST_SCRIPT") {
+        let path = PathBuf::from(explicit);
+        if let Ok(canonical) = path.canonicalize() {
+            if canonical.exists() {
+                return Some(canonical.to_string_lossy().to_string());
+            }
+        }
+    }
 
     // Candidate paths (relative to binary location)
     let candidates = [
+        // Current working directory (typical local fork usage)
+        cwd.join("host/dist/index.js"),
         // Dev: binary at overseer/target/release/os
         exe_dir.join("../../../host/dist/index.js"),
         // npm: binary in @dmmulroy/overseer-{platform}/, host in @dmmulroy/overseer/host/
@@ -256,11 +267,22 @@ fn find_host_script(exe_path: &PathBuf) -> Option<String> {
 }
 
 /// Find the static root for UI files.
-fn find_static_root(exe_path: &PathBuf) -> Option<String> {
+fn find_static_root(exe_path: &PathBuf, cwd: &Path) -> Option<String> {
     let exe_dir = exe_path.parent()?;
+
+    if let Ok(explicit) = std::env::var("OVERSEER_UI_DIST") {
+        let path = PathBuf::from(explicit);
+        if let Ok(canonical) = path.canonicalize() {
+            if canonical.exists() && canonical.join("index.html").exists() {
+                return Some(canonical.to_string_lossy().to_string());
+            }
+        }
+    }
 
     // Candidate paths (relative to binary location)
     let candidates = [
+        // Current working directory (typical local fork usage)
+        cwd.join("ui/dist"),
         // Dev: binary at overseer/target/release/os
         exe_dir.join("../../../ui/dist"),
         // npm: binary in @dmmulroy/overseer-{platform}/, ui in @dmmulroy/overseer/ui/
