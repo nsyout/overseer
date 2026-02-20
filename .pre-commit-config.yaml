@@ -1,0 +1,32 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: mixed-line-ending
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: host-build
+        name: host build (pre-push)
+        entry: bash -lc 'cd host && pnpm run build'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: ui-build
+        name: ui build (pre-push)
+        entry: bash -lc 'cd ui && pnpm run build'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

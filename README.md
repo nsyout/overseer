@@ -296,6 +296,36 @@ cd host && pnpm run typecheck
 cd ui && pnpm install && pnpm run dev
 ```
 
+## Git Hooks (pre-commit)
+
+This repo includes a `.pre-commit-config.yaml` with:
+- fast hygiene checks on commit (yaml/json/toml/whitespace/conflicts)
+- secret scanning via gitleaks
+- heavier host/ui build checks on `pre-push`
+
+Setup:
+
+```bash
+pipx install pre-commit  # or: brew install pre-commit
+pre-commit install
+pre-commit install --hook-type pre-push
+```
+
+Run manually:
+
+```bash
+pre-commit run --all-files
+pre-commit run --hook-stage pre-push --all-files
+```
+
+## CI and Security
+
+GitHub Actions workflows in this fork:
+- `CI` (`.github/workflows/ci.yml`): Rust fmt/clippy/test + host/ui typecheck/build
+- `Security` (`.github/workflows/security.yml`): gitleaks, cargo-audit, pnpm audit
+- `CodeQL` (`.github/workflows/codeql.yml`): GitHub code scanning for Rust and JS/TS
+- `Release Binaries` (`.github/workflows/release.yml`): manual release binary build + GitHub Release publishing
+
 ## Storage
 
 SQLite database location (in priority order):
