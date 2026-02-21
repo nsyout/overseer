@@ -9,7 +9,6 @@ use crate::types::{
     CreateTaskInput, InheritedLearnings, LifecycleState, ListTasksFilter, Task, TaskContext,
     UpdateTaskInput,
 };
-use crate::vcs;
 
 const MAX_DEPTH: i32 = 2;
 
@@ -186,17 +185,32 @@ impl<'a> TaskService<'a> {
     }
 
     pub fn complete(&self, id: &TaskId, result: Option<&str>) -> Result<Task> {
-        self.complete_with_learnings(id, result, &[])
+        self.complete_with_learnings_and_commit_sha(id, result, &[], None)
     }
 
     /// Complete a task with optional learnings that get attached and bubbled to parent.
     /// Learnings are first added to this task, then bubbled to immediate parent (if any).
     /// This keeps learnings aligned with VCS state - siblings only see learnings after merge.
+    #[allow(dead_code)] // Used by non-workflow code paths and tests
     pub fn complete_with_learnings(
         &self,
         id: &TaskId,
         result: Option<&str>,
         learnings: &[String],
+    ) -> Result<Task> {
+        self.complete_with_learnings_and_commit_sha(id, result, learnings, None)
+    }
+
+    /// Complete a task with optional learnings and explicit commit SHA.
+    ///
+    /// This method is used by workflow code paths where commit SHA comes from
+    /// the exact VCS operation that performed the commit.
+    pub fn complete_with_learnings_and_commit_sha(
+        &self,
+        id: &TaskId,
+        result: Option<&str>,
+        learnings: &[String],
+        commit_sha: Option<&str>,
     ) -> Result<Task> {
         if !task_repo::task_exists(self.conn, id)? {
             return Err(OsError::TaskNotFound(id.clone()));
@@ -211,10 +225,7 @@ impl<'a> TaskService<'a> {
             learning_repo::add_learning(self.conn, id, content, None)?;
         }
 
-        // Auto-populate commit_sha if VCS is available (Invariant #6)
-        let commit_sha = Self::get_current_commit_sha();
-
-        let mut task = task_repo::complete_task(self.conn, id, result, commit_sha.as_deref())?;
+        let mut task = task_repo::complete_task(self.conn, id, result, commit_sha)?;
 
         // NOTE: Dependency edges are preserved on completion.
         // Readiness is computed from completion state (blocker.completed), not edge removal.
@@ -228,13 +239,6 @@ impl<'a> TaskService<'a> {
         task.depth = Some(self.get_depth(id)?);
         task.effectively_blocked = self.is_effectively_blocked(&task)?;
         Ok(task)
-    }
-
-    fn get_current_commit_sha() -> Option<String> {
-        // Try to get VCS backend from current directory
-        let cwd = std::env::current_dir().ok()?;
-        let backend = vcs::get_backend(&cwd).ok()?;
-        backend.current_commit_id().ok()
     }
 
     pub fn reopen(&self, id: &TaskId) -> Result<Task> {
