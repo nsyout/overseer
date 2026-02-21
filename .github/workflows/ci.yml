@@ -29,6 +29,20 @@ jobs:
       - name: cargo test
         run: cargo test
 
+  lockfiles:
+    name: Lockfile policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Ensure npm lockfiles are not committed
+        run: |
+          if find . -name package-lock.json -not -path "*/node_modules/*" | grep -q .; then
+            echo "package-lock.json detected. This repository is pnpm-only; use pnpm-lock.yaml."
+            find . -name package-lock.json -not -path "*/node_modules/*"
+            exit 1
+          fi
+
   host:
     name: Host checks
     runs-on: ubuntu-latest
