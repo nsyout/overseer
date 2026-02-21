@@ -328,18 +328,26 @@ GitHub Actions workflows in this fork:
 
 ## Release Flow
 
-- Use `Cut Release` (`.github/workflows/cut-release.yml`) to bump version (`patch|minor|major`), commit version files, and push tag.
+- Prepare release bump locally:
+
+```bash
+just prepare-release BUMP=patch
+```
+
+- Open PR with version bump, merge to `main`, then tag:
+
+```bash
+git switch main
+git pull --ff-only origin main
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
 - Tag push (`vX.Y.Z`) automatically triggers `Release Binaries`.
 - Release preflight validates:
   - tag commit equals `main` HEAD
   - versions in `overseer/Cargo.toml`, `host/package.json`, and `ui/package.json` match the tag
   - required checks on `main` are green
-
-CLI shortcut:
-
-```bash
-just cut-release BUMP=patch
-```
 
 ## Storage
 

@@ -34,6 +34,6 @@ check:
     cd host && pnpm run build
     cd ui && pnpm run build
 
-# Trigger GitHub cut-release workflow (BUMP=patch|minor|major)
-cut-release BUMP="patch":
-    bump="{{BUMP}}"; bump="${bump#BUMP=}"; gh workflow run "Cut Release" --ref main -f bump="$bump"
+# Prepare release bump locally (BUMP=patch|minor|major)
+prepare-release BUMP="patch":
+    bump="{{BUMP}}"; bump="${bump#BUMP=}"; current="$(sed -n 's/^version = "\([0-9][0-9.]*\)"$/\1/p' overseer/Cargo.toml | head -n1)"; next="$(python3 scripts/release_version.py next "$current" "$bump")"; echo "Preparing release $current -> $next"; python3 scripts/release_version.py set "$next"; cd host && pnpm install --lockfile-only; cd ../ui && pnpm install --lockfile-only; git status --short
