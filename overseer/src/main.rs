@@ -227,7 +227,7 @@ fn run_host_server(mode: &str, port: u16) {
 
 /// Find the host script relative to the binary.
 /// Tries multiple locations for dev vs production installs.
-fn find_host_script(exe_path: &PathBuf, cwd: &Path) -> Option<String> {
+fn find_host_script(exe_path: &Path, cwd: &Path) -> Option<String> {
     let exe_dir = exe_path.parent()?;
 
     if let Ok(explicit) = std::env::var("OVERSEER_HOST_SCRIPT") {
@@ -267,7 +267,7 @@ fn find_host_script(exe_path: &PathBuf, cwd: &Path) -> Option<String> {
 }
 
 /// Find the static root for UI files.
-fn find_static_root(exe_path: &PathBuf, cwd: &Path) -> Option<String> {
+fn find_static_root(exe_path: &Path, cwd: &Path) -> Option<String> {
     let exe_dir = exe_path.parent()?;
 
     if let Ok(explicit) = std::env::var("OVERSEER_UI_DIST") {

@@ -322,7 +322,7 @@ pre-commit run --hook-stage pre-push --all-files
 
 GitHub Actions workflows in this fork:
 - `CI` (`.github/workflows/ci.yml`): Rust fmt/clippy/test + host/ui typecheck/build
-- `Security` (`.github/workflows/security.yml`): gitleaks, cargo-audit, pnpm audit
+- `Security` (`.github/workflows/security.yml`): gitleaks on PRs; cargo-audit and pnpm audit on `main` and weekly schedule
 - `CodeQL` (`.github/workflows/codeql.yml`): GitHub code scanning for Rust and JS/TS
 - `Release Binaries` (`.github/workflows/release.yml`): manual release binary build + GitHub Release publishing
 

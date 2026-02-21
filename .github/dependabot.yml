@@ -7,6 +7,10 @@ updates:
       day: "monday"
       time: "08:00"
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -18,6 +22,14 @@ updates:
       day: "monday"
       time: "08:15"
     open-pull-requests-limit: 5
+    groups:
+      cargo-patch:
+        update-types:
+          - "patch"
+      cargo-minor-major:
+        update-types:
+          - "minor"
+          - "major"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -29,6 +41,15 @@ updates:
       day: "monday"
       time: "08:30"
     open-pull-requests-limit: 5
+    groups:
+      host-deps:
+        dependency-type: "production"
+        patterns:
+          - "*"
+      host-dev-deps:
+        dependency-type: "development"
+        patterns:
+          - "*"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -40,6 +61,15 @@ updates:
       day: "monday"
       time: "08:45"
     open-pull-requests-limit: 5
+    groups:
+      ui-deps:
+        dependency-type: "production"
+        patterns:
+          - "*"
+      ui-dev-deps:
+        dependency-type: "development"
+        patterns:
+          - "*"
     commit-message:
       prefix: "chore"
       include: "scope"

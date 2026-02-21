@@ -111,12 +111,6 @@ impl Task {
         self.completed || self.cancelled
     }
 
-    /// Task satisfies blocker (completed only, not cancelled)
-    /// Note: archived is a visibility filter, doesn't affect blocker semantics
-    pub fn satisfies_blocker(&self) -> bool {
-        self.completed && !self.cancelled
-    }
-
     /// Validate lifecycle invariants (call at DB hydrate in debug/tests)
     #[cfg(debug_assertions)]
     pub fn validate_lifecycle_invariants(&self) -> Result<(), String> {
