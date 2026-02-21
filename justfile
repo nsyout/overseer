@@ -33,3 +33,7 @@ ui:
 check:
     cd host && pnpm run build
     cd ui && pnpm run build
+
+# Trigger GitHub cut-release workflow (BUMP=patch|minor|major)
+cut-release BUMP="patch":
+    gh workflow run "Cut Release" --ref main -f bump={{BUMP}}

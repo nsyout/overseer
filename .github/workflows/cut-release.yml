@@ -1,0 +1,63 @@
+name: Cut Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: main
+
+      - name: Ensure workflow runs from main branch
+        run: |
+          if [[ "${GITHUB_REF_NAME}" != "main" ]]; then
+            echo "Cut Release must be run from main."
+            exit 1
+          fi
+
+      - name: Compute next version
+        id: next
+        run: |
+          current="$(sed -n 's/^version = "\([0-9][0-9.]*\)"$/\1/p' overseer/Cargo.toml | head -n1)"
+          next="$(python3 scripts/release_version.py next "$current" "${{ inputs.bump }}")"
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "Current: $current"
+          echo "Next:    $next"
+
+      - name: Set release version
+        run: |
+          python3 scripts/release_version.py set "${{ steps.next.outputs.next }}"
+
+      - name: Refresh pnpm lockfiles
+        run: |
+          cd host && pnpm install --lockfile-only
+          cd ../ui && pnpm install --lockfile-only
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add overseer/Cargo.toml host/package.json ui/package.json host/pnpm-lock.yaml ui/pnpm-lock.yaml
+          git commit -m "chore: cut release v${{ steps.next.outputs.next }}"
+
+      - name: Push commit and tag
+        run: |
+          git push origin main
+          git tag "v${{ steps.next.outputs.next }}"
+          git push origin "v${{ steps.next.outputs.next }}"

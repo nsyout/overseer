@@ -222,7 +222,7 @@ const subtask = await tasks.get(subtaskId);
 
 ```bash
 # Tasks
-os task create -d "description" [--context "..."] [--parent ID] [--priority 1-5]
+os task create -d "description" [--context "..."] [--parent ID] [--priority 0-2]
 os task get <id>
 os task list [--parent ID] [--ready] [--completed]
 os task update <id> [-d "..."] [--context "..."] [--priority N] [--parent ID]
@@ -325,6 +325,21 @@ GitHub Actions workflows in this fork:
 - `Security` (`.github/workflows/security.yml`): gitleaks on PRs; cargo-audit and pnpm audit on `main` and weekly schedule
 - `CodeQL` (`.github/workflows/codeql.yml`): GitHub code scanning for Rust and JS/TS
 - `Release Binaries` (`.github/workflows/release.yml`): automatic binary build + GitHub Release publishing on `v*` tags
+
+## Release Flow
+
+- Use `Cut Release` (`.github/workflows/cut-release.yml`) to bump version (`patch|minor|major`), commit version files, and push tag.
+- Tag push (`vX.Y.Z`) automatically triggers `Release Binaries`.
+- Release preflight validates:
+  - tag commit equals `main` HEAD
+  - versions in `overseer/Cargo.toml`, `host/package.json`, and `ui/package.json` match the tag
+  - required checks on `main` are green
+
+CLI shortcut:
+
+```bash
+just cut-release BUMP=patch
+```
 
 ## Storage
 

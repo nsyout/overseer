@@ -141,7 +141,7 @@ Agents write JS -> server executes -> only results return.
 
 - Pattern source: [opensrc-mcp](https://github.com/dmmulroy/opensrc-mcp)
 - Why: LLMs handle TypeScript APIs better than raw tool calls
-- Key: `executor.ts` (VM sandbox), `server.ts` (tool registration)
+- Key: `executor.ts` (VM sandbox), `mcp.ts` (tool registration)
 
 ## COMMANDS
 
@@ -151,12 +151,12 @@ cd overseer && cargo build --release    # Build CLI
 cd overseer && cargo test               # Run tests
 
 # Node Host
-cd host && npm install            # Install deps
-cd host && npm run build          # Compile TS
+cd host && pnpm install           # Install deps
+cd host && pnpm run build         # Compile TS
 
 # UI
-cd ui && npm run dev              # Start Hono API + Vite HMR
-cd ui && npm run test:ui          # Run UI tests (agent-browser)
+cd ui && pnpm run dev             # Start Hono API + Vite HMR
+cd ui && pnpm run test:ui         # Run UI tests (agent-browser)
 ```
 
 ## DOCS

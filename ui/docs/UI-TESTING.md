@@ -6,13 +6,13 @@ Automated UI testing using [agent-browser](https://github.com/vercel-labs/agent-
 
 ```bash
 # Ensure dev server is running
-cd ui && npm run dev
+cd ui && pnpm run dev
 
 # Quick verification (< 3s)
-npm run test:ui:quick
+pnpm run test:ui:quick
 
 # Full test suite
-npm run test:ui
+pnpm run test:ui
 ```
 
 ## Available Commands
@@ -21,20 +21,20 @@ npm run test:ui
 
 | Command | Script | Description |
 |---------|--------|-------------|
-| `npm run test:ui:quick` | `quick` | Fast snapshot + checks (< 3s) |
-| `npm run test:ui:verify` | `verify` | Pass/fail assertions |
-| `npm run test:ui:capture` | `capture` | Full state for AI analysis |
-| `npm run test:ui:flow` | `flow` | Run interaction flows |
+| `pnpm run test:ui:quick` | `quick` | Fast snapshot + checks (< 3s) |
+| `pnpm run test:ui:verify` | `verify` | Pass/fail assertions |
+| `pnpm run test:ui:capture` | `capture` | Full state for AI analysis |
+| `pnpm run test:ui:flow` | `flow` | Run interaction flows |
 
 ### Standard Commands
 
 | Command | Script | Description |
 |---------|--------|-------------|
-| `npm run test:ui` | `test` | Full test suite with screenshots |
-| `npm run test:ui:snapshot` | `snapshot` | Show UI structure (accessibility tree) |
-| `npm run test:ui:screenshot` | `screenshot` | Capture single screenshot |
-| `npm run test:ui:watch` | `watch` | Continuous testing during dev |
-| `npm run test:ui:interact` | `interact` | Open browser for manual testing |
+| `pnpm run test:ui` | `test` | Full test suite with screenshots |
+| `pnpm run test:ui:snapshot` | `snapshot` | Show UI structure (accessibility tree) |
+| `pnpm run test:ui:screenshot` | `screenshot` | Capture single screenshot |
+| `pnpm run test:ui:watch` | `watch` | Continuous testing during dev |
+| `pnpm run test:ui:interact` | `interact` | Open browser for manual testing |
 
 ## AI Agent Feedback Loop
 
@@ -125,10 +125,10 @@ The API server uses `OVERSEER_CLI_CWD` to locate the `.overseer/` database:
 
 ```bash
 # Use repo root database (has actual tasks)
-OVERSEER_CLI_CWD=/path/to/overseer npm run dev
+OVERSEER_CLI_CWD=/path/to/overseer pnpm run dev
 
 # Use ui's local database (empty by default)
-npm run dev
+pnpm run dev
 ```
 
 ## Test Script Details
@@ -209,12 +209,12 @@ pkill -f chromium
 set -e
 
 # Start dev server in background
-npm run dev &
+pnpm run dev &
 DEV_PID=$!
 sleep 5
 
 # Run tests
-npm run test:ui
+pnpm run test:ui
 
 # Cleanup
 kill $DEV_PID

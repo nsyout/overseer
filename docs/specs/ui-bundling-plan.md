@@ -1,5 +1,7 @@
 # UI Bundling Plan
 
+> Historical note: this spec predates the current host-based + pnpm release flow and references deprecated npm packaging details.
+
 Bundle the UI webapp into a distributable runtime so `os ui` works without cloning repo.
 
 ## Current State
