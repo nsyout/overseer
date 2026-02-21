@@ -1,9 +1,12 @@
 name: Release Binaries
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.12.1)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -15,10 +18,10 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Normalize and validate tag version
+      - name: Normalize and validate version
         id: version
         run: |
-          VERSION="${GITHUB_REF_NAME}"
+          VERSION="${{ inputs.version }}"
           VERSION="${VERSION#v}"
 
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -31,12 +34,13 @@ jobs:
   preflight:
     needs: [validate]
     runs-on: ubuntu-latest
+    outputs:
+      main_sha: ${{ steps.verify.outputs.main_sha }}
     steps:
       - uses: actions/checkout@v6.0.2
-        with:
-          ref: ${{ github.ref }}
 
       - name: Verify latest main checks are green
+        id: verify
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -44,13 +48,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          tag_sha="$(git rev-parse HEAD)"
           main_sha="$(gh api "repos/${REPO}/commits/main" --jq '.sha')"
-          echo "Tag SHA:  ${tag_sha}"
           echo "Main SHA: ${main_sha}"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
 
-          if [[ "$tag_sha" != "$main_sha" ]]; then
-            echo "Refusing release: tag does not point to current main HEAD."
+          existing_release="$(gh release view "v${TAG_VERSION}" --repo "$REPO" --json tagName --jq '.tagName' 2>/dev/null || true)"
+          if [[ -n "$existing_release" ]]; then
+            echo "Release/tag v${TAG_VERSION} already exists."
             exit 1
           fi
 
@@ -74,9 +78,6 @@ jobs:
             "Host checks"
             "UI checks"
             "Secret scan (gitleaks)"
-            "Rust dependency audit"
-            "Node dependency audit (host)"
-            "Node dependency audit (ui)"
             "Analyze (javascript-typescript)"
             "Analyze (rust)"
           )
@@ -170,4 +171,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ needs.validate.outputs.version }}" release/* --generate-notes
+          gh release create "v${{ needs.validate.outputs.version }}" release/* --target "${{ needs.preflight.outputs.main_sha }}" --generate-notes

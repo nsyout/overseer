@@ -324,7 +324,7 @@ GitHub Actions workflows in this fork:
 - `CI` (`.github/workflows/ci.yml`): Rust fmt/clippy/test + host/ui typecheck/build
 - `Security` (`.github/workflows/security.yml`): gitleaks on PRs; cargo-audit and pnpm audit on `main` and weekly schedule
 - `CodeQL` (`.github/workflows/codeql.yml`): GitHub code scanning for Rust and JS/TS
-- `Release Binaries` (`.github/workflows/release.yml`): automatic binary build + GitHub Release publishing on `v*` tags
+- `Release Binaries` (`.github/workflows/release.yml`): manual release workflow that validates state and publishes binaries
 
 ## Release Flow
 
@@ -334,20 +334,17 @@ GitHub Actions workflows in this fork:
 just prepare-release BUMP=patch
 ```
 
-- Open PR with version bump, merge to `main`, then tag:
+- Open PR with version bump and merge to `main`.
+- Run `Release Binaries` workflow manually with `version` (e.g. `0.12.1`).
 
 ```bash
-git switch main
-git pull --ff-only origin main
-git tag vX.Y.Z
-git push origin vX.Y.Z
+gh workflow run "Release Binaries" --ref main -f version=0.12.1
 ```
 
-- Tag push (`vX.Y.Z`) automatically triggers `Release Binaries`.
 - Release preflight validates:
-  - tag commit equals `main` HEAD
   - versions in `overseer/Cargo.toml`, `host/package.json`, and `ui/package.json` match the tag
   - required checks on `main` are green
+  - release/tag for that version does not already exist
 
 ## Storage
 
