@@ -1,15 +1,13 @@
 name: Release Binaries
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to release (e.g. 0.12.0)"
-        required: true
-        type: string
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: write
+  checks: read
 
 jobs:
   validate:
@@ -17,19 +15,73 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Normalize and validate version
+      - name: Normalize and validate tag version
         id: version
         run: |
-          VERSION="${{ inputs.version }}"
+          VERSION="${GITHUB_REF_NAME}"
           VERSION="${VERSION#v}"
-          if ! npx --yes semver "$VERSION" > /dev/null 2>&1; then
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Invalid semver: $VERSION"
             exit 1
           fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-  build:
+  preflight:
     needs: [validate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify latest main checks are green
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          main_sha="$(gh api "repos/${REPO}/commits/main" --jq '.sha')"
+          echo "Main SHA: ${main_sha}"
+
+          check_runs_json="$(gh api "repos/${REPO}/commits/${main_sha}/check-runs")"
+
+          required_checks=(
+            "Rust checks"
+            "Host checks"
+            "UI checks"
+            "Secret scan (gitleaks)"
+            "Rust dependency audit"
+            "Node dependency audit (host)"
+            "Node dependency audit (ui)"
+            "Analyze (javascript-typescript)"
+            "Analyze (rust)"
+          )
+
+          failed=0
+          for name in "${required_checks[@]}"; do
+            status="$(jq -r --arg name "$name" 'first(.check_runs[] | select(.name == $name) | .status) // "missing"' <<< "$check_runs_json")"
+            conclusion="$(jq -r --arg name "$name" 'first(.check_runs[] | select(.name == $name) | .conclusion) // "missing"' <<< "$check_runs_json")"
+
+            if [[ "$status" == "missing" ]]; then
+              echo "Missing required check run on main: $name"
+              failed=1
+              continue
+            fi
+
+            echo "$name -> status=$status conclusion=$conclusion"
+
+            if [[ "$status" != "completed" || "$conclusion" != "success" ]]; then
+              echo "Required check is not green on main: $name"
+              failed=1
+            fi
+          done
+
+          if [[ "$failed" -ne 0 ]]; then
+            echo "Preflight failed: main branch checks are not fully green."
+            exit 1
+          fi
+
+  build:
+    needs: [validate, preflight]
     strategy:
       fail-fast: false
       matrix:
@@ -69,7 +121,7 @@ jobs:
           path: release/os-${{ matrix.name }}.tar.gz
 
   release:
-    needs: [validate, build]
+    needs: [validate, preflight, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
