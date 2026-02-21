@@ -186,7 +186,7 @@ interface Task {
   context: TaskContext
   learnings: InheritedLearnings
   result: string | null
-  priority: number              // 1-5, lower = higher
+  priority: number              // 0-2, lower = higher
   completed: boolean
   completedAt: string | null    // ISO 8601
   startedAt: string | null

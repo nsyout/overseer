@@ -1,7 +1,7 @@
 #!/bin/bash
 # Generate TypeScript types from Rust types
 # This script creates a reference TypeScript file that should be compared against
-# mcp/src/types.ts and ui/src/types.ts for drift detection.
+# host/src/types.ts and ui/src/types.ts for drift detection.
 #
 # Usage: ./scripts/generate-types.sh
 
@@ -22,7 +22,7 @@ cat >"$OUTPUT_FILE" <<'EOF'
  * DO NOT EDIT - regenerate with: ./scripts/generate-types.sh
  * 
  * Compare against:
- * - mcp/src/types.ts
+ * - host/src/types.ts
  * - ui/src/types.ts
  */
 
@@ -59,8 +59,8 @@ export function parseLearningId(s: string): LearningId {
 
 // ============ Domain Types ============
 
-/** Priority levels (enforced by Rust, 1-5) */
-export type Priority = 1 | 2 | 3 | 4 | 5;
+/** Priority levels (enforced by Rust, 0-2) */
+export type Priority = 0 | 1 | 2;
 
 /** Task depth (0=milestone, 1=task, 2=subtask) */
 export type Depth = 0 | 1 | 2;
@@ -202,5 +202,5 @@ EOF
 echo "Generated: $OUTPUT_FILE"
 echo ""
 echo "Compare with:"
-echo "  diff $OUTPUT_FILE mcp/src/types.ts"
+echo "  diff $OUTPUT_FILE host/src/types.ts"
 echo "  diff $OUTPUT_FILE ui/src/types.ts"

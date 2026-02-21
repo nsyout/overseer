@@ -39,16 +39,16 @@ ui/
 ## COMMANDS
 
 ```bash
-npm run dev              # Start Hono API + Vite HMR
-npm run dev:api          # Start Hono API only
-npm run dev:vite         # Start Vite only
-npm run build            # Build for production
-npm run typecheck        # Type check
+pnpm run dev              # Start Hono API + Vite HMR
+pnpm run dev:api          # Start Hono API only
+pnpm run dev:vite         # Start Vite only
+pnpm run build            # Build for production
+pnpm run typecheck        # Type check
 
 # Testing (see docs/UI-TESTING.md)
-npm run test:ui          # Full test suite
-npm run test:ui:snapshot # Show UI structure
-npm run test:ui:watch    # Continuous testing
+pnpm run test:ui          # Full test suite
+pnpm run test:ui:snapshot # Show UI structure
+pnpm run test:ui:watch    # Continuous testing
 ```
 
 ## KEY FILES

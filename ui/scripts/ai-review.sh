@@ -25,7 +25,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 cleanup() {
-    npx agent-browser close 2>/dev/null || true
+	npx agent-browser close 2>/dev/null || true
 }
 
 # ============================================================================
@@ -33,25 +33,25 @@ cleanup() {
 # Returns structured data optimized for LLM consumption
 # ============================================================================
 cmd_capture() {
-    trap cleanup EXIT
-    mkdir -p "$OUTPUT_DIR"
-    
-    npx agent-browser open "$DEV_URL" 2>/dev/null
-    npx agent-browser wait --load networkidle 2>/dev/null
-    sleep 0.5
-    
-    # Capture all data
-    local screenshot="$OUTPUT_DIR/ui-state.png"
-    npx agent-browser screenshot "$screenshot" 2>/dev/null
-    
-    local snapshot=$(npx agent-browser snapshot 2>/dev/null)
-    local interactive=$(npx agent-browser snapshot -i 2>/dev/null)
-    local structure=$(npx agent-browser snapshot -d 4 2>/dev/null)
-    
-    cleanup
-    
-    # Output structured for AI consumption
-    cat << EOF
+	trap cleanup EXIT
+	mkdir -p "$OUTPUT_DIR"
+
+	npx agent-browser open "$DEV_URL" 2>/dev/null
+	npx agent-browser wait --load networkidle 2>/dev/null
+	sleep 0.5
+
+	# Capture all data
+	local screenshot="$OUTPUT_DIR/ui-state.png"
+	npx agent-browser screenshot "$screenshot" 2>/dev/null
+
+	local snapshot=$(npx agent-browser snapshot 2>/dev/null)
+	local interactive=$(npx agent-browser snapshot -i 2>/dev/null)
+	local structure=$(npx agent-browser snapshot -d 4 2>/dev/null)
+
+	cleanup
+
+	# Output structured for AI consumption
+	cat <<EOF
 # UI State Capture
 
 ## Screenshot
@@ -76,182 +76,182 @@ $structure
 ## Quick Health Check
 EOF
 
-    # Health checks
-    if echo "$snapshot" | grep -q "Error"; then
-        echo "- [FAIL] Error state visible"
-    else
-        echo "- [PASS] No errors"
-    fi
-    
-    if echo "$snapshot" | grep -q "Overseer"; then
-        echo "- [PASS] App loaded"
-    else
-        echo "- [FAIL] App not loaded"
-    fi
-    
-    if echo "$interactive" | grep -q "button.*All"; then
-        echo "- [PASS] Filter buttons present"
-    else
-        echo "- [WARN] Filter buttons not found"
-    fi
-    
-    if echo "$interactive" | grep -q "button.*P[1-5]"; then
-        echo "- [PASS] Task items visible"
-    else
-        echo "- [WARN] No task items"
-    fi
-    
-    if echo "$snapshot" | grep -q "React Flow"; then
-        echo "- [PASS] Graph view rendered"
-    else
-        echo "- [WARN] Graph view not detected"
-    fi
-    
-    if echo "$snapshot" | grep -q "Milestone\|Task\|Subtask"; then
-        local node_count=$(echo "$snapshot" | grep -c "Milestone\|Task\|Subtask" || echo 0)
-        echo "- [PASS] Graph nodes: $node_count"
-    else
-        echo "- [WARN] No graph nodes"
-    fi
+	# Health checks
+	if echo "$snapshot" | grep -q "Error"; then
+		echo "- [FAIL] Error state visible"
+	else
+		echo "- [PASS] No errors"
+	fi
+
+	if echo "$snapshot" | grep -q "Overseer"; then
+		echo "- [PASS] App loaded"
+	else
+		echo "- [FAIL] App not loaded"
+	fi
+
+	if echo "$interactive" | grep -q "button.*All"; then
+		echo "- [PASS] Filter buttons present"
+	else
+		echo "- [WARN] Filter buttons not found"
+	fi
+
+	if echo "$interactive" | grep -q "button.*P[0-2]"; then
+		echo "- [PASS] Task items visible"
+	else
+		echo "- [WARN] No task items"
+	fi
+
+	if echo "$snapshot" | grep -q "React Flow"; then
+		echo "- [PASS] Graph view rendered"
+	else
+		echo "- [WARN] Graph view not detected"
+	fi
+
+	if echo "$snapshot" | grep -q "Milestone\|Task\|Subtask"; then
+		local node_count=$(echo "$snapshot" | grep -c "Milestone\|Task\|Subtask" || echo 0)
+		echo "- [PASS] Graph nodes: $node_count"
+	else
+		echo "- [WARN] No graph nodes"
+	fi
 }
 
 # ============================================================================
 # FLOW - Run interaction and capture before/after
 # ============================================================================
 cmd_flow() {
-    local action="${1:-filter}"
-    trap cleanup EXIT
-    mkdir -p "$OUTPUT_DIR"
-    
-    npx agent-browser open "$DEV_URL" 2>/dev/null
-    npx agent-browser wait --load networkidle 2>/dev/null
-    sleep 0.5
-    
-    echo "# Interaction Flow: $action"
-    echo ""
-    
-    echo "## Before"
-    echo "\`\`\`"
-    npx agent-browser snapshot -i 2>/dev/null
-    echo "\`\`\`"
-    npx agent-browser screenshot "$OUTPUT_DIR/flow-before.png" 2>/dev/null
-    echo ""
-    
-    case "$action" in
-        filter-done)
-            echo "## Action: Click 'Done' filter"
-            npx agent-browser click "@e3" 2>/dev/null
-            ;;
-        filter-blocked)
-            echo "## Action: Click 'Blocked' filter"
-            npx agent-browser click "@e4" 2>/dev/null
-            ;;
-        filter-ready)
-            echo "## Action: Click 'Ready' filter"
-            npx agent-browser click "@e5" 2>/dev/null
-            ;;
-        select-first)
-            echo "## Action: Click first task"
-            local first=$(npx agent-browser snapshot -i 2>/dev/null | grep "button.*P[1-5]" | head -1 | grep -o '@e[0-9]*' | head -1)
-            if [ -n "$first" ]; then
-                npx agent-browser click "$first" 2>/dev/null
-            fi
-            ;;
-        graph-node)
-            echo "## Action: Click graph node"
-            local node=$(npx agent-browser snapshot -i 2>/dev/null | grep -E "Milestone|Task|Subtask" | head -1 | grep -o '@e[0-9]*' | head -1)
-            if [ -n "$node" ]; then
-                echo "Clicking node: $node"
-                npx agent-browser click "$node" 2>/dev/null
-            else
-                echo "(no graph nodes found)"
-            fi
-            ;;
-        *)
-            echo "## Action: Click @e1"
-            npx agent-browser click "@e1" 2>/dev/null
-            ;;
-    esac
-    
-    sleep 0.5
-    
-    echo ""
-    echo "## After"
-    echo "\`\`\`"
-    npx agent-browser snapshot -i 2>/dev/null
-    echo "\`\`\`"
-    npx agent-browser screenshot "$OUTPUT_DIR/flow-after.png" 2>/dev/null
-    
-    echo ""
-    echo "## Screenshots"
-    echo "- Before: $OUTPUT_DIR/flow-before.png"
-    echo "- After: $OUTPUT_DIR/flow-after.png"
-    
-    cleanup
+	local action="${1:-filter}"
+	trap cleanup EXIT
+	mkdir -p "$OUTPUT_DIR"
+
+	npx agent-browser open "$DEV_URL" 2>/dev/null
+	npx agent-browser wait --load networkidle 2>/dev/null
+	sleep 0.5
+
+	echo "# Interaction Flow: $action"
+	echo ""
+
+	echo "## Before"
+	echo "\`\`\`"
+	npx agent-browser snapshot -i 2>/dev/null
+	echo "\`\`\`"
+	npx agent-browser screenshot "$OUTPUT_DIR/flow-before.png" 2>/dev/null
+	echo ""
+
+	case "$action" in
+	filter-done)
+		echo "## Action: Click 'Done' filter"
+		npx agent-browser click "@e3" 2>/dev/null
+		;;
+	filter-blocked)
+		echo "## Action: Click 'Blocked' filter"
+		npx agent-browser click "@e4" 2>/dev/null
+		;;
+	filter-ready)
+		echo "## Action: Click 'Ready' filter"
+		npx agent-browser click "@e5" 2>/dev/null
+		;;
+	select-first)
+		echo "## Action: Click first task"
+		local first=$(npx agent-browser snapshot -i 2>/dev/null | grep "button.*P[0-2]" | head -1 | grep -o '@e[0-9]*' | head -1)
+		if [ -n "$first" ]; then
+			npx agent-browser click "$first" 2>/dev/null
+		fi
+		;;
+	graph-node)
+		echo "## Action: Click graph node"
+		local node=$(npx agent-browser snapshot -i 2>/dev/null | grep -E "Milestone|Task|Subtask" | head -1 | grep -o '@e[0-9]*' | head -1)
+		if [ -n "$node" ]; then
+			echo "Clicking node: $node"
+			npx agent-browser click "$node" 2>/dev/null
+		else
+			echo "(no graph nodes found)"
+		fi
+		;;
+	*)
+		echo "## Action: Click @e1"
+		npx agent-browser click "@e1" 2>/dev/null
+		;;
+	esac
+
+	sleep 0.5
+
+	echo ""
+	echo "## After"
+	echo "\`\`\`"
+	npx agent-browser snapshot -i 2>/dev/null
+	echo "\`\`\`"
+	npx agent-browser screenshot "$OUTPUT_DIR/flow-after.png" 2>/dev/null
+
+	echo ""
+	echo "## Screenshots"
+	echo "- Before: $OUTPUT_DIR/flow-before.png"
+	echo "- After: $OUTPUT_DIR/flow-after.png"
+
+	cleanup
 }
 
 # ============================================================================
 # DIFF - Compare two states (useful after code changes)
 # ============================================================================
 cmd_diff() {
-    trap cleanup EXIT
-    mkdir -p "$OUTPUT_DIR"
-    
-    # Capture current state
-    npx agent-browser open "$DEV_URL" 2>/dev/null
-    npx agent-browser wait --load networkidle 2>/dev/null
-    sleep 0.5
-    
-    local current=$(npx agent-browser snapshot -i 2>/dev/null)
-    npx agent-browser screenshot "$OUTPUT_DIR/current.png" 2>/dev/null
-    
-    cleanup
-    
-    echo "# State Comparison"
-    echo ""
-    
-    # Check if previous state exists
-    if [ -f "$OUTPUT_DIR/previous-interactive.txt" ]; then
-        local previous=$(cat "$OUTPUT_DIR/previous-interactive.txt")
-        
-        echo "## Changes Detected"
-        echo "\`\`\`diff"
-        diff <(echo "$previous") <(echo "$current") || true
-        echo "\`\`\`"
-    else
-        echo "## Current State (no previous to compare)"
-        echo "\`\`\`"
-        echo "$current"
-        echo "\`\`\`"
-    fi
-    
-    # Save current as previous for next run
-    echo "$current" > "$OUTPUT_DIR/previous-interactive.txt"
-    
-    echo ""
-    echo "Screenshot: $OUTPUT_DIR/current.png"
-    echo "Previous state saved for next comparison."
+	trap cleanup EXIT
+	mkdir -p "$OUTPUT_DIR"
+
+	# Capture current state
+	npx agent-browser open "$DEV_URL" 2>/dev/null
+	npx agent-browser wait --load networkidle 2>/dev/null
+	sleep 0.5
+
+	local current=$(npx agent-browser snapshot -i 2>/dev/null)
+	npx agent-browser screenshot "$OUTPUT_DIR/current.png" 2>/dev/null
+
+	cleanup
+
+	echo "# State Comparison"
+	echo ""
+
+	# Check if previous state exists
+	if [ -f "$OUTPUT_DIR/previous-interactive.txt" ]; then
+		local previous=$(cat "$OUTPUT_DIR/previous-interactive.txt")
+
+		echo "## Changes Detected"
+		echo "\`\`\`diff"
+		diff <(echo "$previous") <(echo "$current") || true
+		echo "\`\`\`"
+	else
+		echo "## Current State (no previous to compare)"
+		echo "\`\`\`"
+		echo "$current"
+		echo "\`\`\`"
+	fi
+
+	# Save current as previous for next run
+	echo "$current" >"$OUTPUT_DIR/previous-interactive.txt"
+
+	echo ""
+	echo "Screenshot: $OUTPUT_DIR/current.png"
+	echo "Previous state saved for next comparison."
 }
 
 # ============================================================================
 # ANALYZE - Output data formatted for specific analysis tasks
 # ============================================================================
 cmd_analyze() {
-    local focus="${1:-ux}"
-    trap cleanup EXIT
-    
-    npx agent-browser open "$DEV_URL" 2>/dev/null
-    npx agent-browser wait --load networkidle 2>/dev/null
-    sleep 0.5
-    
-    local snapshot=$(npx agent-browser snapshot 2>/dev/null)
-    local interactive=$(npx agent-browser snapshot -i 2>/dev/null)
-    
-    cleanup
-    
-    case "$focus" in
-        ux)
-            cat << EOF
+	local focus="${1:-ux}"
+	trap cleanup EXIT
+
+	npx agent-browser open "$DEV_URL" 2>/dev/null
+	npx agent-browser wait --load networkidle 2>/dev/null
+	sleep 0.5
+
+	local snapshot=$(npx agent-browser snapshot 2>/dev/null)
+	local interactive=$(npx agent-browser snapshot -i 2>/dev/null)
+
+	cleanup
+
+	case "$focus" in
+	ux)
+		cat <<EOF
 # UX Analysis Request
 
 ## Context
@@ -272,9 +272,9 @@ $interactive
 ## Your Task
 Identify the top 3 UX improvements with specific, actionable suggestions.
 EOF
-            ;;
-        a11y)
-            cat << EOF
+		;;
+	a11y)
+		cat <<EOF
 # Accessibility Analysis Request
 
 ## Full Accessibility Tree
@@ -292,12 +292,12 @@ $snapshot
 ## Your Task
 List accessibility issues by severity (critical/major/minor).
 EOF
-            ;;
-        perf)
-            local element_count=$(echo "$snapshot" | wc -l | tr -d ' ')
-            local depth=$(echo "$snapshot" | grep -o '^[[:space:]]*' | sort -u | tail -1 | wc -c)
-            
-            cat << EOF
+		;;
+	perf)
+		local element_count=$(echo "$snapshot" | wc -l | tr -d ' ')
+		local depth=$(echo "$snapshot" | grep -o '^[[:space:]]*' | sort -u | tail -1 | wc -c)
+
+		cat <<EOF
 # Performance Analysis Request
 
 ## Metrics
@@ -319,119 +319,119 @@ $snapshot
 ## Your Task
 Identify performance concerns and optimization opportunities.
 EOF
-            ;;
-    esac
+		;;
+	esac
 }
 
 # ============================================================================
 # VERIFY - Quick pass/fail assertions
 # ============================================================================
 cmd_verify() {
-    trap cleanup EXIT
-    
-    npx agent-browser open "$DEV_URL" 2>/dev/null
-    npx agent-browser wait --load networkidle 2>/dev/null
-    sleep 0.5
-    
-    local snapshot=$(npx agent-browser snapshot 2>/dev/null)
-    local interactive=$(npx agent-browser snapshot -i 2>/dev/null)
-    
-    cleanup
-    
-    local pass=0
-    local fail=0
-    
-    echo "# Verification Results"
-    echo ""
-    
-    # Core checks
-    if echo "$snapshot" | grep -q "Overseer"; then
-        echo "- [PASS] App heading present"
-        ((pass++))
-    else
-        echo "- [FAIL] App heading missing"
-        ((fail++))
-    fi
-    
-    if echo "$snapshot" | grep -q "Error"; then
-        echo "- [FAIL] Error state visible"
-        ((fail++))
-    else
-        echo "- [PASS] No error states"
-        ((pass++))
-    fi
-    
-    # Filter checks
-    for f in "All" "Active" "Done" "Blocked" "Ready"; do
-        if echo "$interactive" | grep -qi "button.*$f"; then
-            echo "- [PASS] Filter: $f"
-            ((pass++))
-        else
-            echo "- [FAIL] Filter missing: $f"
-            ((fail++))
-        fi
-    done
-    
-    # Layout checks
-    local panels=$(echo "$snapshot" | grep -c "complementary\|main" || echo 0)
-    if [ "$panels" -ge 3 ]; then
-        echo "- [PASS] 3-panel layout ($panels regions)"
-        ((pass++))
-    else
-        echo "- [FAIL] Layout issue ($panels regions)"
-        ((fail++))
-    fi
-    
-    # Status indicator checks
-    if echo "$snapshot" | grep -q 'status.*Completed\|status.*Blocked\|status.*Pending'; then
-        echo "- [PASS] Status indicators present"
-        ((pass++))
-    else
-        echo "- [WARN] Status indicators may be missing"
-    fi
-    
-    # Graph checks
-    if echo "$snapshot" | grep -q "React Flow"; then
-        echo "- [PASS] Graph view rendered"
-        ((pass++))
-    else
-        echo "- [FAIL] Graph view missing"
-        ((fail++))
-    fi
-    
-    if echo "$snapshot" | grep -q "Milestone\|Task\|Subtask"; then
-        echo "- [PASS] Graph nodes present"
-        ((pass++))
-    else
-        echo "- [WARN] No graph nodes (may be empty)"
-    fi
-    
-    echo ""
-    echo "## Summary"
-    echo "Pass: $pass, Fail: $fail"
-    
-    [ $fail -eq 0 ] && exit 0 || exit 1
+	trap cleanup EXIT
+
+	npx agent-browser open "$DEV_URL" 2>/dev/null
+	npx agent-browser wait --load networkidle 2>/dev/null
+	sleep 0.5
+
+	local snapshot=$(npx agent-browser snapshot 2>/dev/null)
+	local interactive=$(npx agent-browser snapshot -i 2>/dev/null)
+
+	cleanup
+
+	local pass=0
+	local fail=0
+
+	echo "# Verification Results"
+	echo ""
+
+	# Core checks
+	if echo "$snapshot" | grep -q "Overseer"; then
+		echo "- [PASS] App heading present"
+		((pass++))
+	else
+		echo "- [FAIL] App heading missing"
+		((fail++))
+	fi
+
+	if echo "$snapshot" | grep -q "Error"; then
+		echo "- [FAIL] Error state visible"
+		((fail++))
+	else
+		echo "- [PASS] No error states"
+		((pass++))
+	fi
+
+	# Filter checks
+	for f in "All" "Active" "Done" "Blocked" "Ready"; do
+		if echo "$interactive" | grep -qi "button.*$f"; then
+			echo "- [PASS] Filter: $f"
+			((pass++))
+		else
+			echo "- [FAIL] Filter missing: $f"
+			((fail++))
+		fi
+	done
+
+	# Layout checks
+	local panels=$(echo "$snapshot" | grep -c "complementary\|main" || echo 0)
+	if [ "$panels" -ge 3 ]; then
+		echo "- [PASS] 3-panel layout ($panels regions)"
+		((pass++))
+	else
+		echo "- [FAIL] Layout issue ($panels regions)"
+		((fail++))
+	fi
+
+	# Status indicator checks
+	if echo "$snapshot" | grep -q 'status.*Completed\|status.*Blocked\|status.*Pending'; then
+		echo "- [PASS] Status indicators present"
+		((pass++))
+	else
+		echo "- [WARN] Status indicators may be missing"
+	fi
+
+	# Graph checks
+	if echo "$snapshot" | grep -q "React Flow"; then
+		echo "- [PASS] Graph view rendered"
+		((pass++))
+	else
+		echo "- [FAIL] Graph view missing"
+		((fail++))
+	fi
+
+	if echo "$snapshot" | grep -q "Milestone\|Task\|Subtask"; then
+		echo "- [PASS] Graph nodes present"
+		((pass++))
+	else
+		echo "- [WARN] No graph nodes (may be empty)"
+	fi
+
+	echo ""
+	echo "## Summary"
+	echo "Pass: $pass, Fail: $fail"
+
+	[ $fail -eq 0 ] && exit 0 || exit 1
 }
 
 # Main
 case "${1:-capture}" in
-    capture|c)
-        cmd_capture
-        ;;
-    flow|f)
-        cmd_flow "$2"
-        ;;
-    diff|d)
-        cmd_diff
-        ;;
-    analyze|a)
-        cmd_analyze "$2"
-        ;;
-    verify|v)
-        cmd_verify
-        ;;
-    help|--help|-h)
-        cat << EOF
+capture | c)
+	cmd_capture
+	;;
+flow | f)
+	cmd_flow "$2"
+	;;
+diff | d)
+	cmd_diff
+	;;
+analyze | a)
+	cmd_analyze "$2"
+	;;
+verify | v)
+	cmd_verify
+	;;
+help | --help | -h)
+	cat <<EOF
 AI-Powered UI Review
 
 Usage: $0 [command] [args]
@@ -456,10 +456,10 @@ Environment:
   UI_TEST_URL      Dev server URL (default: http://localhost:5173)
   UI_TEST_OUTPUT   Output directory (default: ./test-results)
 EOF
-        ;;
-    *)
-        echo "Unknown command: $1"
-        echo "Run '$0 help' for usage"
-        exit 1
-        ;;
+	;;
+*)
+	echo "Unknown command: $1"
+	echo "Run '$0 help' for usage"
+	exit 1
+	;;
 esac
