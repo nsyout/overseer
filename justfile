@@ -9,7 +9,29 @@ build:
 # Install/build Node dependencies for host and UI
 setup:
     cd host && pnpm install && pnpm run build
-    cd ui && pnpm install
+    cd ui && pnpm install && pnpm run build
+
+# Build release-style local runtime bundle (os + host/ui dist)
+package-local:
+    bash {{justfile_directory()}}/scripts/package-runtime.sh
+
+# Install runtime bundle to ~/.local/share/overseer and ~/.local/bin/os
+install-runtime VERSION="" TARBALL="":
+    bash {{justfile_directory()}}/scripts/install-runtime.sh "{{VERSION}}" "{{TARBALL}}"
+
+# Print shell exports for runtime lookup paths
+runtime-env:
+    @echo 'export PATH="$HOME/.local/bin:$PATH"'
+    @echo 'export OVERSEER_HOST_SCRIPT="$HOME/.local/share/overseer/current/host/dist/index.js"'
+    @echo 'export OVERSEER_UI_DIST="$HOME/.local/share/overseer/current/ui/dist"'
+
+# List installed runtime versions and current pointer
+list-runtime-versions:
+    bash {{justfile_directory()}}/scripts/list-runtime-versions.sh
+
+# Uninstall one runtime version (defaults to current)
+uninstall-runtime VERSION="":
+    bash {{justfile_directory()}}/scripts/uninstall-runtime.sh "{{VERSION}}"
 
 # Install latest os binary from GitHub Releases (to ~/.local/bin by default)
 install:

@@ -242,15 +242,19 @@ impl<'a> TaskWorkflowService<'a> {
 
         // 1. VCS first - commit (NothingToCommit is OK)
         let msg = format!("Complete: {}\n\n{}", task.description, result.unwrap_or(""));
-        match self.vcs.commit(&msg) {
-            Ok(_) | Err(VcsError::NothingToCommit) => {}
+        let commit_sha = match self.vcs.commit(&msg) {
+            Ok(commit) => Some(commit.id),
+            Err(VcsError::NothingToCommit) => None,
             Err(e) => return Err(e.into()),
-        }
+        };
 
         // 2. DB updates (after VCS succeeds)
-        let completed_task = self
-            .task_service
-            .complete_with_learnings(id, result, learnings)?;
+        let completed_task = self.task_service.complete_with_learnings_and_commit_sha(
+            id,
+            result,
+            learnings,
+            commit_sha.as_deref(),
+        )?;
 
         // 3. Best-effort cleanup: checkout safe target then delete bookmark/branch
         // Unified stacking semantics for git backend
@@ -357,15 +361,19 @@ impl<'a> TaskWorkflowService<'a> {
         if task.depth != Some(0) {
             // 1. VCS first - commit (NothingToCommit is OK)
             let msg = format!("Complete: {}\n\n{}", task.description, result.unwrap_or(""));
-            match self.vcs.commit(&msg) {
-                Ok(_) | Err(VcsError::NothingToCommit) => {}
+            let commit_sha = match self.vcs.commit(&msg) {
+                Ok(commit) => Some(commit.id),
+                Err(VcsError::NothingToCommit) => None,
                 Err(e) => return Err(e.into()),
-            }
+            };
 
             // 2. DB updates (after VCS succeeds)
-            let completed_task = self
-                .task_service
-                .complete_with_learnings(id, result, learnings)?;
+            let completed_task = self.task_service.complete_with_learnings_and_commit_sha(
+                id,
+                result,
+                learnings,
+                commit_sha.as_deref(),
+            )?;
 
             return Ok(completed_task);
         }
@@ -376,15 +384,19 @@ impl<'a> TaskWorkflowService<'a> {
             task.description,
             result.unwrap_or("")
         );
-        match self.vcs.commit(&msg) {
-            Ok(_) | Err(VcsError::NothingToCommit) => {}
+        let commit_sha = match self.vcs.commit(&msg) {
+            Ok(commit) => Some(commit.id),
+            Err(VcsError::NothingToCommit) => None,
             Err(e) => return Err(e.into()),
-        }
+        };
 
         // DB updates (after VCS succeeds)
-        let completed_task = self
-            .task_service
-            .complete_with_learnings(id, result, learnings)?;
+        let completed_task = self.task_service.complete_with_learnings_and_commit_sha(
+            id,
+            result,
+            learnings,
+            commit_sha.as_deref(),
+        )?;
 
         // Best-effort cleanup: delete ALL descendant bookmarks
         // Unified stacking semantics for git backend
@@ -544,6 +556,7 @@ mod tests {
         let completed = service.complete(&task.id, Some("Done")).unwrap();
         assert!(completed.completed);
         assert_eq!(completed.result, Some("Done".to_string()));
+        assert_eq!(completed.commit_sha, Some("mock-commit-id".to_string()));
     }
 
     #[test]

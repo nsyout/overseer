@@ -26,6 +26,36 @@ What this gives you:
 - `os task ...` / `os learning ...` / `os vcs ...` from release binary.
 - `os mcp` and `os ui` require local `host` + `ui` build output from this repo.
 
+### Runtime install (clean usage vs dev checkout)
+
+If you want to use Overseer from any project without relying on this repo layout,
+build and install a local runtime bundle:
+
+```bash
+# 1) Build local runtime bundle (os + host/dist + ui/dist)
+just package-local
+
+# 2) Install bundle to ~/.local/share/overseer and link ~/.local/bin/os
+just install-runtime
+
+# 3) Add runtime env vars once
+just runtime-env
+
+# 4) Optional runtime management
+just list-runtime-versions
+just uninstall-runtime              # removes current version
+just uninstall-runtime VERSION=... # removes specific version
+```
+
+`install-runtime` installs a versioned runtime under:
+- `~/.local/share/overseer/versions/<version>`
+- `~/.local/share/overseer/current` (symlink)
+- `~/.local/bin/os` (symlink to current runtime binary)
+
+For runtime lookup, set:
+- `OVERSEER_HOST_SCRIPT=$HOME/.local/share/overseer/current/host/dist/index.js`
+- `OVERSEER_UI_DIST=$HOME/.local/share/overseer/current/ui/dist`
+
 ### Install os from GitHub Releases (manual)
 
 ```bash
@@ -279,6 +309,11 @@ Keyboard: `g`=graph, `l`=list, `k`=kanban, `?`=help
 just setup         # host deps + build, ui deps
 just install       # install os from latest release
 just install-local # build os locally and install to ~/.local/bin
+just package-local # build local runtime tarball
+just install-runtime # install local runtime tarball
+just runtime-env   # print shell exports for runtime paths
+just list-runtime-versions # list installed runtime versions
+just uninstall-runtime # remove installed runtime version
 just build         # build os + host + ui
 just check         # host/ui production builds
 just ui            # run UI dev server
