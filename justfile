@@ -36,4 +36,4 @@ check:
 
 # Trigger GitHub cut-release workflow (BUMP=patch|minor|major)
 cut-release BUMP="patch":
-    gh workflow run "Cut Release" --ref main -f bump={{BUMP}}
+    bump="{{BUMP}}"; bump="${bump#BUMP=}"; gh workflow run "Cut Release" --ref main -f bump="$bump"
