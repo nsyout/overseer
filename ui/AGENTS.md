@@ -134,7 +134,7 @@ Tailwind v4 CSS-first config in `global.css`. **Neo-Industrial / Technical Bruta
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `6969` | Hono API port |
+| `PORT` | `8787` | Hono API port |
 | `OVERSEER_CLI_PATH` | `os` | CLI binary path |
 | `OVERSEER_CLI_CWD` | `process.cwd()` | CLI working directory |
 
