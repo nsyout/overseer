@@ -28,10 +28,10 @@ ulid = "1.2"
 
 # VCS backend
 # Git backend (gix) - pure Rust git implementation
-gix = { version = "0.77", default-features = false, features = ["index", "worktree-mutation", "status", "revision", "dirwalk"] }
+gix = { version = "0.79", default-features = false, features = ["index", "worktree-mutation", "status", "revision", "dirwalk"] }
 
 [dev-dependencies]
-tempfile = "3.24"
+tempfile = "3.25"
 
 [profile.dev.package.gix]
 opt-level = 1
