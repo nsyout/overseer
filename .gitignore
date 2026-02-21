@@ -34,6 +34,9 @@ ui-test-*.png
 .env
 .env.*
 
+# Local Overseer task database
+.overseer/
+
 # npm publish artifacts (generated at release)
 npm/overseer-darwin-*/
 npm/overseer-linux-*/

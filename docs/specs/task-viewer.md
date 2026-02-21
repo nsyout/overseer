@@ -21,7 +21,7 @@
 **Completed fixes:**
 - ✅ npm script: `dev:api` → `dev`
 - ✅ Ready detection: CLI detects "listening on" (Hono output)
-- ✅ Port: API defaults to 6969
+- ✅ Port: API defaults to 8787
 
 ---
 
@@ -38,7 +38,7 @@ Agents using Overseer via MCP have no visual way to inspect the task store state
 | Constraint | Value |
 |------------|-------|
 | Deployment | Local-only, no auth |
-| Port | :6969 (default) |
+| Port | :8787 (default) |
 | VCS operations | Through existing workflow service (complete only) |
 | Browser support | Modern (Chrome/Firefox/Safari) |
 | Data freshness | Polling @ 5 seconds |
@@ -76,14 +76,14 @@ Agents using Overseer via MCP have no visual way to inspect the task store state
 ```
 +-------------------------------------------------------------+
 |                    os ui (Rust CLI)                         |
-|  - Spawns Hono server on :6969                              |
+|  - Spawns Hono server on :8787                              |
 |  - Opens browser                                            |
 |  - Waits for "listening on" in stdout                       |
 +-------------------------------------------------------------+
                               |
                               v
 +-------------------------------------------------------------+
-|                    Hono Server (:6969)                      |
+|                    Hono Server (:8787)                      |
 |                                                             |
 |  +-------------------+  +--------------------------------+  |
 |  | Static Files      |  | API Routes (/api/*)            |  |
@@ -272,7 +272,7 @@ type DeleteLearningResponse = { deleted: true }
 
 **Behavior:**
 ```bash
-os ui              # Start server on :6969, open browser
+os ui              # Start server on :8787, open browser
 os ui --no-open    # Start server only
 os ui --port 8080  # Custom port
 ```
@@ -313,7 +313,7 @@ os ui --port 8080  # Custom port
 
 **Existing:**
 - `app.ts`: Hono app with `/health` route, exports `AppType`
-- `index.ts`: `serve()` on `PORT` env (default 3001 -> **change to 6969**)
+- `index.ts`: `serve()` on `PORT` env (default 3001 -> **change to 8787**)
 - `../client.ts`: `hc<AppType>()` factory
 
 **TODO:**
@@ -325,7 +325,7 @@ os ui --port 8080  # Custom port
 **Acceptance:**
 - [x] Hono app exports `AppType`
 - [x] `hc<AppType>()` client factory exists
-- [ ] Default port is 6969
+- [ ] Default port is 8787
 - [ ] All routes return proper JSON
 - [ ] Errors return `{ error: string }` with appropriate status codes
 - [ ] CLI spawn helper works
@@ -475,7 +475,7 @@ ui/src/client/
 ```
 Phase 1: Fix CLI/API sync
   D1 fixes (npm script, port, detection)
-  D2 port fix (default 6969)
+  D2 port fix (default 8787)
        |
        v
 Phase 2: API routes
@@ -558,7 +558,7 @@ Hono provides type-safe client generation via `hc<AppType>()`:
 - Local-only app doesn't need SSR/SSG benefits
 
 **Dev mode:**
-- `npm run dev` starts Hono on :6969 + Vite HMR
+- `npm run dev` starts Hono on :8787 + Vite HMR
 - Vite proxies `/api/*` to Hono
 
 **Production:**

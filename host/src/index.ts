@@ -4,7 +4,7 @@
  * 
  * Usage:
  *   overseer-host mcp --cli-path /path/to/os --cwd /path/to/repo
- *   overseer-host ui --cli-path /path/to/os --cwd /path/to/repo --static-root /path/to/dist --port 6969
+ *   overseer-host ui --cli-path /path/to/os --cwd /path/to/repo --static-root /path/to/dist --port 8787
  */
 import { configureCli } from "./cli.js";
 import { startMcpServer } from "./mcp.js";
@@ -100,7 +100,7 @@ function parseArgs(argv: string[]): Args {
       process.exit(1);
     }
     if (!result.port) {
-      result.port = 6969;
+      result.port = 8787;
     }
   }
 
@@ -124,7 +124,7 @@ Options:
 
 UI-specific options:
   --static-root <path>   Path to static files (required for UI mode)
-  --port <number>        HTTP port (default: 6969)
+  --port <number>        HTTP port (default: 8787)
 
 Examples:
   overseer-host mcp --cli-path /usr/local/bin/os --cwd /home/user/project
@@ -145,7 +145,7 @@ async function main(): Promise<void> {
     await startMcpServer();
   } else {
     await startUiServer({
-      port: args.port ?? 6969,
+      port: args.port ?? 8787,
       staticRoot: args.staticRoot ?? "./dist",
     });
   }

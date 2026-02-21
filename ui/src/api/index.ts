@@ -5,8 +5,8 @@ export type { AppType } from "./app.js";
 
 const PORT =
   process.env.PORT === undefined
-    ? 6969
-    : Number.parseInt(process.env.PORT, 10) || 6969;
+    ? 8787
+    : Number.parseInt(process.env.PORT, 10) || 8787;
 
 // Static root:
 // - Dev: ./dist (vite output, relative to ui/)

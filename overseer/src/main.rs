@@ -124,8 +124,8 @@ Requires Node.js and the @overseer/host package.
 "#
     )]
     Ui {
-        /// HTTP port (default: 6969)
-        #[arg(long, short, default_value = "6969")]
+        /// HTTP port (default: 8787)
+        #[arg(long, short, default_value = "8787")]
         port: u16,
     },
 

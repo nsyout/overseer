@@ -72,7 +72,7 @@ if (process.env.NODE_ENV === "production") {
 **Modify:** `npm/overseer/bin/os`
 ```js
 if (command === "ui") {
-  const port = args[1] || process.env.PORT || "6969";
+  const port = args[1] || process.env.PORT || "8787";
   process.env.PORT = port;
   process.env.NODE_ENV = "production";
   process.env.OVERSEER_CLI_PATH = getBinaryPath();
@@ -142,9 +142,9 @@ npm/overseer needs (for UI runtime):
 - No `open` package dependency needed initially
 
 ### Q2: Port configuration → All options with precedence
-Precedence: `--port` > positional > `PORT` env > default (6969)
+Precedence: `--port` > positional > `PORT` env > default (8787)
 ```bash
-os ui                    # default 6969
+os ui                    # default 8787
 os ui 8080               # positional (quick)
 os ui --port 8080        # explicit (scripts/docs)
 PORT=8080 os ui          # Node deploy convention

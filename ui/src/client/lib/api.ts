@@ -6,7 +6,7 @@ import type { AppType } from "../../api/app.js";
  * Uses Hono's hc() for full type inference from AppType.
  */
 export const api = hc<AppType>(
-  typeof window !== "undefined" ? window.location.origin : "http://localhost:6969"
+  typeof window !== "undefined" ? window.location.origin : "http://localhost:8787"
 );
 
 export type { AppType };

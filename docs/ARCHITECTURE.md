@@ -268,7 +268,7 @@ This fork is local-source first. Build and run directly from `overseer/`, `host/
 **Environment variables:**
 - `OVERSEER_CLI_PATH` - Override CLI binary path
 - `OVERSEER_CLI_CWD` - Override working directory
-- `PORT` - UI server port (default: 6969)
+- `PORT` - UI server port (default: 8787)
 
 ## Guardrails
 

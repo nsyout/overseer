@@ -257,7 +257,7 @@ os data export [-o file.json]
 Web UI for viewing tasks:
 
 ```bash
-# Build and run through os (serves UI via host on :6969)
+# Build and run through os (serves UI via host on :8787)
 just setup
 os ui
 
@@ -335,15 +335,16 @@ just prepare-release BUMP=patch
 ```
 
 - Open PR with version bump and merge to `main`.
-- Run `Release Binaries` workflow manually with `version` (e.g. `0.12.1`).
+- Run `Release Binaries` manually with a version (e.g. `0.12.1`):
 
 ```bash
 gh workflow run "Release Binaries" --ref main -f version=0.12.1
 ```
 
 - Release preflight validates:
-  - versions in `overseer/Cargo.toml`, `host/package.json`, and `ui/package.json` match the tag
-  - required checks on `main` are green
+  - release version is valid semver
+  - versions in `overseer/Cargo.toml`, `host/package.json`, and `ui/package.json` match the version
+  - required checks on `main` are green (waits for in-progress required checks up to 30 minutes)
   - release/tag for that version does not already exist
 
 ## Storage
